@@ -1,0 +1,13 @@
+POINTCLOUD_TOPIC : "/os1_cloud_node/points"
+PUBLISH_GROUND : "/pcl/Ground"
+PUBLISH_CLUSTER : "/pcl/cluster"
+PUBLISH_BOX : "/pcl/bounding_box"
+VoxelGridLeafSize : 0.5
+DifferenceOfNormals_Scale1 : 1
+DifferenceOfNormals_Scale1 : 3
+DifferenceOfNormals_Threshold : 0.15
+DifferenceOfNormals_segradius : 2
+EuclideanClusterExtraction_DistanceThreshold : 0.02 
+EuclideanClusterExtraction_ClusterTolerance : 0.1
+EuclideanClusterExtraction_MinClusterSize : 100
+EuclideanClusterExtraction_MaxClusterSize : 25000

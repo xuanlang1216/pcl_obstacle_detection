@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/xuanlang/catkin_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/xuanlang/catkin_ws/src/lidar_obstacle_detector/include/**",
+        "/home/xuanlang/catkin_ws/src/pcl_obstacle_detection/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
