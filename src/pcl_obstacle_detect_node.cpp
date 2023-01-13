@@ -25,7 +25,7 @@
 
 //Include custom library
 #include <pcl_obstacle_detection/Obstacle_Detector.hpp>
-
+#include <pcl_obstacle_detection/Object_Tracking.hpp>
 
 
 // Main function
@@ -40,7 +40,10 @@ int main(int argc, char** argv)
     // Print "Hello ROS!" to the terminal and ROS log file
     ROS_INFO_STREAM("Hello from ROS node " << ros::this_node::getName());
 
-    Obstacle_Detector my_detector;
+    //Obstacle_Detector my_detector;
+    //testing
+    ObjectTracker my_tracker(3.0,4.0);
+    my_tracker.sigmaPointSampling();
 
     // Create a ROS Subscriber to IMAGE_TOPIC with a queue_size of 1 and a callback function to cloud_cb
     // ros::Subscriber sub = nh.subscribe(POINTCLOUD_TOPIC, 1, process_pc);

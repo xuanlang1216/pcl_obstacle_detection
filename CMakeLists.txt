@@ -129,6 +129,7 @@ include_directories(
 add_library(${PROJECT_NAME}
   include/${PROJECT_NAME}/Obstacle_Detector.hpp
   include/${PROJECT_NAME}/Cloud_Filter.hpp
+  include/${PROJECT_NAME}/Object_Tracking.hpp
 )
 
 ## Add cmake target dependencies of the library
@@ -141,7 +142,7 @@ ${catkin_EXPORTED_TARGETS})
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(pcl_obstacle_detect_node src/pcl_obstacle_detect_node.cpp src/Cloud_Filter.cpp src/Obstacle_Detector.cpp)
+add_executable(pcl_obstacle_detect_node src/pcl_obstacle_detect_node.cpp src/Cloud_Filter.cpp src/Obstacle_Detector.cpp src/Object_Tracking.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
