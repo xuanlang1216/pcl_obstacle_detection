@@ -40,10 +40,14 @@ int main(int argc, char** argv)
     // Print "Hello ROS!" to the terminal and ROS log file
     ROS_INFO_STREAM("Hello from ROS node " << ros::this_node::getName());
 
-    //Obstacle_Detector my_detector;
+    // Obstacle_Detector my_detector;
     //testing
     ObjectTracker my_tracker(3.0,4.0);
-    my_tracker.sigmaPointSampling();
+    my_tracker.statePrediction(0.2);
+    Eigen::MatrixXd m(2,1);
+    m(0,0) = 3.1;
+    m(1,0) = 4.1;
+    my_tracker.stateUpdate(m,0.2);
 
     // Create a ROS Subscriber to IMAGE_TOPIC with a queue_size of 1 and a callback function to cloud_cb
     // ros::Subscriber sub = nh.subscribe(POINTCLOUD_TOPIC, 1, process_pc);
