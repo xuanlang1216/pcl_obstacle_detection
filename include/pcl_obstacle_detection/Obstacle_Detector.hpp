@@ -13,6 +13,8 @@
 
 // Include PointCloud2 message
 #include <sensor_msgs/PointCloud2.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 //Dynamic Reconfig
 #include <dynamic_reconfigure/server.h>
@@ -40,6 +42,7 @@
 
 #include <pcl/features/don.h>
 
+#include <pcl_obstacle_detection/Object_Tracking.hpp>
 
 
 class Obstacle_Detector
@@ -52,6 +55,9 @@ class Obstacle_Detector
         int EuclideanClusterExtraction_MinClusterSize;
         int EuclideanClusterExtraction_MaxClusterSize;
 
+        double lasttime;
+
+
 
         // ROS Publisher
         ros::NodeHandle nh;
@@ -59,11 +65,15 @@ class Obstacle_Detector
         ros::Publisher pub_ground_cloud;
         ros::Publisher pub_cluster_cloud;
         ros::Publisher pub_bounding_box;
+        ros::Publisher pub_trakers;
 
         std::string POINTCLOUD_TOPIC;
         std::string PUBLISH_GROUND;
         std::string PUBLISH_CLUSTER;
         std::string PUBLISH_BOX;
+        std::string PUBLISH_TRACKER;
+
+        std::vector<ObjectTracker> Objects;
 
         // TODO: Find a way to use this
         // pcl::PointCloud<pcl::PointXYZ>::Ptr raw_cloud;
@@ -81,6 +91,12 @@ class Obstacle_Detector
         // void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config& config, uint32_t level);
 
         void process_pc(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg);
+        void updateTracker(pcl::PointCloud<pcl::PointXYZ>& object,double time_diff);
+        visualization_msgs::MarkerArray Draw_Trackers(std_msgs::Header header);
+
+
+
+
         pcl::PointCloud<pcl::PointXYZ>::Ptr FilterCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& input_cloud);
         pcl::PointCloud<pcl::PointXYZ>::Ptr SegmentCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& input_cloud);
         pcl::PointCloud<pcl::PointXYZ>::Ptr EuclideanClusterExtraction(const pcl::PointCloud<pcl::PointXYZ>::Ptr& input_cloud);

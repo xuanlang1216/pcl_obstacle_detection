@@ -145,6 +145,14 @@ Visualization Manager:
         {}
       Queue Size: 100
       Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /pcl/tracker
+      Name: MarkerArray
+      Namespaces:
+        cube: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
@@ -173,7 +181,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 12.247613906860352
+      Distance: 17.229543685913086
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -210,4 +218,4 @@ Window Geometry:
     collapsed: false
   Width: 1410
   X: 275
-  Y: 40
+  Y: 27

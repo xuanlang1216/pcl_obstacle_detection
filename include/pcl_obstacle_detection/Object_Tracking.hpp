@@ -28,7 +28,8 @@ class ObjectTracker{
         Eigen::MatrixXd sigma_points_new_; //new sets of Sigma points after state propagation
 
 
-
+        double prev_time_;
+        double curr_time;
 
 
         int L; //Dimension of states_
@@ -57,7 +58,7 @@ class ObjectTracker{
         /*
         Constructor
         */
-        ObjectTracker(float x_int,float y_int);
+        ObjectTracker(float x_int,float y_int,double ini_time);
 
         /*
         Destructor
@@ -71,6 +72,8 @@ class ObjectTracker{
         void statePrediction(double delta_t);
 
         void stateUpdate(Eigen::MatrixXd measurement,double delta_t);
+
+        void UKFUpdate(Eigen::MatrixXd measurement,double time_now);
 
 
         Eigen::MatrixXd statePropagationCV(Eigen::MatrixXd sigma_points,double delta_t);

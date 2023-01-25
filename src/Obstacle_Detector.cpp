@@ -12,7 +12,7 @@
 
 // Include PointCloud2 message
 #include <sensor_msgs/PointCloud2.h>
-#include <visualization_msgs/Marker.h>
+
 
 
 #include <pcl_conversions/pcl_conversions.h>
@@ -47,13 +47,26 @@
 // Dynamic parameter server callback function
 void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config& config, uint32_t level)
 {
-  // Pointcloud Filtering Parameters
-  rMin = config.Ground_Removal_rMin;
-  rMax = config.Ground_Removal_rMax;
-  tHmin = config.Ground_Removal_tHmin;
-  tHmax = config.Ground_Removal_tHmax;
-  tHDiff = config.Ground_Removal_tHDiff;
-  hSensor = config.Ground_Removal_hSensor;
+    // Pointcloud Filtering Parameters
+    rMin = config.Ground_Removal_rMin;
+    rMax = config.Ground_Removal_rMax;
+    tHmin = config.Ground_Removal_tHmin;
+    tHmax = config.Ground_Removal_tHmax;
+    tHDiff = config.Ground_Removal_tHDiff;
+    hSensor = config.Ground_Removal_hSensor;
+
+    tHeightMin = config.BoxFit_tHeightMin;  //Min height of the object
+    tHeightMax = config.BoxFit_tHeightMax;  //max height of the object
+    tWidthMin = config.BoxFit_tWidthMin;  //min Width of the object
+    tWidthMax = config.BoxFit_tWidthMax;   //max wdith of the object
+    tLenMin = config.BoxFit_tLenMin;     //min length of the object
+    tLenMax = config.BoxFit_tLenMax;    //max length of the object
+    tAreaMax = config.BoxFit_tAreaMax;   //max area of the object
+    tRatioMin = config.BoxFit_tRatioMin;   //min ratio between length and width
+    tRatioMax = config.BoxFit_tRatioMax;   //max ratio between length and width
+    minLenRatio = config.BoxFit_minLenRatio; //min length of object for ratio check
+    tPtPerM3 = config.BoxFit_tPtPerM3;      //min point count per bouding box volume
+
 }
 
 Obstacle_Detector::Obstacle_Detector()
@@ -62,10 +75,13 @@ Obstacle_Detector::Obstacle_Detector()
     nh.getParam("/PUBLISH_GROUND", PUBLISH_GROUND);
     nh.getParam("/PUBLISH_CLUSTER", PUBLISH_CLUSTER);
     nh.getParam("/PUBLISH_BOX", PUBLISH_BOX);
+    nh.getParam("PUBLISH_TRACKER",PUBLISH_TRACKER);
+
     sub_lidar_points = nh.subscribe(POINTCLOUD_TOPIC, 1, &Obstacle_Detector::process_pc,this);
     pub_ground_cloud = nh.advertise<sensor_msgs::PointCloud2>(PUBLISH_GROUND, 10);
     pub_cluster_cloud = nh.advertise<sensor_msgs::PointCloud2>(PUBLISH_CLUSTER, 10);
     pub_bounding_box = nh.advertise<visualization_msgs::MarkerArray>(PUBLISH_BOX,10);
+    pub_trakers = nh.advertise<visualization_msgs::MarkerArray>(PUBLISH_TRACKER,10);
 
     nh.getParam("/VoxelGridLeafSize",VoxelGridLeafSize);
     nh.getParam("/EuclideanClusterExtraction_DistanceThreshold",EuclideanClusterExtraction_DistanceThreshold);
@@ -85,7 +101,10 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
 {
     //
     ROS_DEBUG("Lidar Points Received");
-    ros::Time lasttime = ros::Time::now();
+    double time_diff = ros::Time::now().toSec() - lasttime;
+    std::cout<<"time_diff: "<<time_diff<<std::endl;
+    double time_now = ros::Time::now().toSec();
+    lasttime = ros::Time::now().toSec();
     const auto pointcloud_header = cloud_msg->header;
 
     // Initialize PointCloud
@@ -123,11 +142,17 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
         for (auto box : bounding_boxes)
         {
             visual_bouding_box.markers.push_back(Draw_Bounding_Box(box,pointcloud_header,ID));
+            //Update the tracker
+            updateTracker(box,time_diff);
             // visual_bouding_box.header = pointcloud_header;
             ID++;
         }  
     }
     ROS_INFO("find %i objects",ID);
+
+    visualization_msgs::MarkerArray visual_traker = Draw_Trackers(pointcloud_header);
+
+    //Update the tracker
 
     //Publish Ground cloud and obstacle cloud
     sensor_msgs::PointCloud2 cluster_cloud_msg;
@@ -140,7 +165,143 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
     pub_ground_cloud.publish(ground_cloud_msg);
     pub_cluster_cloud.publish(cluster_cloud_msg);
     pub_bounding_box.publish(visual_bouding_box);
+    pub_trakers.publish(visual_traker);
+
 }
+
+void Obstacle_Detector::updateTracker(pcl::PointCloud<pcl::PointXYZ>& object,double time_diff){
+
+
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(object,centroid);
+    double x = centroid[0];
+    double y = centroid[1];
+    bool updated = false;
+    double min_dist = 1000000;
+    int min_dist_ID = -1;
+
+
+    if (Objects.size()!=0){
+        for (int i =0; i<Objects.size();i++){
+            double dist = sqrt(pow(Objects[i].states_now_(0,0)-x,2) + pow(Objects[i].states_now_(1,0)-y,2));
+            if (dist < min_dist){
+                min_dist = dist;
+                min_dist_ID = i;
+            }
+        }
+        
+        std::cout<< "Min_dist: "<< min_dist << ", ID: "<< min_dist_ID<<std::endl;
+        if (min_dist < 1 && min_dist_ID >= 0){ 
+            std::cout<<"Object(" << min_dist_ID<<") is updated"<<std::endl;
+            std::cout<<"Measurement :( " <<x<< " ,"<<y<<")"<<std::endl;
+            std::cout<<"Prev_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
+            Eigen::MatrixXd measure(2,1);
+            measure(0,0) = x;
+            measure(1,0) = y;
+            Objects[min_dist_ID].UKFUpdate(measure,time_diff);
+            std::cout<<"new_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
+        }
+        else if (min_dist >=1 /*&& Objects.size() < 10*/){ //added object size constraints TODO: need to remove this later
+            Objects.push_back(ObjectTracker(x,y,time_diff));
+        }
+
+
+
+
+
+
+
+        // for (auto& the_object : Objects)
+        // {
+        //     double dist = sqrt(pow(the_object.states_now_(0,0)-x,2) + pow(the_object.states_now_(1,0)-y,2));
+        //     if (dist < 0.5){
+        //         std::cout<<"position: ("<< the_object.states_now_(0,0)<<", "<<the_object.states_now_(1,0)<< ")"<<std::endl;
+        //         std::cout<<"measurement: ("<< x<<", "<<y<< ")"<<std::endl;
+        //         std::cout<<"dist: " << dist<<std::endl;
+
+        //         Eigen::MatrixXd measure(2,1);
+        //         measure(0,0) = x;
+        //         measure(1,0) = y;
+        //         the_object.UKFUpdate(measure,time_diff);
+        //         // std::cout<<"Displaying object right after update"<<std::endl;
+        //         // std::cout<<"the_object.x: "<< the_object.states_now_(0,0)<<std::endl;
+        //         // std::cout<<"the_object.y: "<< the_object.states_now_(1,0)<<std::endl;
+        //         updated = true;
+        //         break;
+        //     }
+        // }
+
+        // if (!updated){
+        //     Objects.push_back(ObjectTracker(x,y,time_diff));
+        // }
+
+    }
+    else{
+        std::cout<<"Adding new traker"<<std::endl;
+        Objects.push_back(ObjectTracker(x,y,time_diff));
+    }
+
+    std::cout<<"object count: " << Objects.size()<<std::endl;
+
+    // for (auto object3 : Objects)
+    // {
+    //     std::cout<<"Displaying object used to Update_Tracker"<<std::endl;
+    //     std::cout<<"object.x: "<< object3.states_now_(0,0)<<std::endl;
+    //     std::cout<<"object.y: "<< object3.states_now_(1,0)<<std::endl;
+    // }
+
+}
+
+visualization_msgs::MarkerArray Obstacle_Detector::Draw_Trackers(std_msgs::Header header)
+{
+    visualization_msgs::MarkerArray visual_objects;
+    int ID = 1;
+
+    for (auto object : Objects)
+    {
+        uint32_t shape = visualization_msgs::Marker::CUBE;
+        visualization_msgs::Marker marker;
+
+        marker.ns = "cube";
+        marker.id = ID;
+        marker.type = shape;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        marker.header = header;
+
+        marker.pose.position.x = object.states_now_(0,0);
+        marker.pose.position.y = object.states_now_(1,0);
+        marker.pose.position.z = -1.0;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+        marker.scale.x = 1;
+        marker.scale.y = 1;
+        marker.scale.z = 1;
+
+        marker.color.r = 255.0f;
+        marker.color.g = 0.0f;
+        marker.color.b = 0.0;
+        marker.color.a = 1.0;
+
+        marker.lifetime = ros::Duration(0.1);
+
+        visual_objects.markers.push_back(marker);
+
+        ID++;
+
+    }
+
+    
+
+    return visual_objects;
+    
+}
+
+
+
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr Obstacle_Detector::FilterCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& input_cloud) 
 {

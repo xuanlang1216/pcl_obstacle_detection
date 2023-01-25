@@ -8,31 +8,44 @@
 #include <pcl_obstacle_detection/Object_Tracking.hpp>
 
 
-ObjectTracker::ObjectTracker(float x_int,float y_int){
-    std::cout<< "Constructing ObjectTracker"<<std::endl;
+ObjectTracker::ObjectTracker(float x_int,float y_int,double ini_time){
+    // std::cout<< "Constructing ObjectTracker"<<std::endl;
+    prev_time_ = ini_time;
+
     states_prev_ = Eigen::MatrixXd(4,1);
-    states_prev_<< x_int,y_int,0,0;
+    states_prev_<< x_int,y_int,0.01,0.01;
+
+    states_now_ = Eigen::MatrixXd(4,1); //initial condition
+    states_now_ << x_int,y_int,0.01,0.01;
     
     P_prev_ = Eigen::MatrixXd(4,4);
-    P_prev_<< 1,0,0,0,
-         0,1,0,0,
-         0,0,1,0,
-         0,0,0,1;
+    P_prev_<< 1e-6,0,0,0,
+            0,1e-6,0,0,
+            0,0,1e-6,0,
+            0,0,0,1e-6;
+    P_now_ = Eigen::MatrixXd(4,4);
+    P_now_<< 1,0,0,0,
+            0,1,0,0,
+            0,0,1,0,
+            0,0,0,1;
     
     R_ = Eigen::MatrixXd(4,4);
-    R_<< 0.1,0,0,0,
-         0,0.1,0,0,
-         0,0,0.1,0,
-         0,0,0,0.1;
+    R_ << 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0; //testing; no variance
+    // R_<< 0.1,0,0,0,
+    //      0,0.1,0,0,
+    //      0,0,0.1,0,
+    //      0,0,0,0.1;
 
     Q_ = Eigen::MatrixXd(2,2);
-    Q_<< 0.1,0,0,0.1;
+    Q_ << 0,0,0,0;
+
+    // Q_<< 0.1,0,0,0.1;
 
     
 
     L = 4;
-    alpha = 0.25;
-    ki = 3;
+    alpha = 1e-3;
+    ki = 0;
     beta = 2;
     lamda = pow(alpha,2) * (L+ki) - L;
 
@@ -113,10 +126,7 @@ void ObjectTracker::statePrediction(double delta_t){
 
 
 
-    // std::cout<< "lamda =" << lamda<< std::endl;
-    // std::cout<< "sigma_weight_mean =" << sigma_weight_mean<< std::endl;
-    // std::cout<< "sigma_points_mean_  =" << sigma_points_mean_<< std::endl;
-    // std::cout<< "states_mean =" << states_mean_<< std::endl;
+    std::cout<< "sigma_points_new_=" << sigma_points_new_<< std::endl;
 
 
 }
@@ -127,7 +137,7 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
 
     //Predict Observation Points
     measurement_pred_ = measurementPropagationCV(sigma_points_new_,delta_t);
-    // std::cout<< "measurement_pred_ =" << measurement_pred_<< std::endl;
+    std::cout<< "measurement_pred_ =" << measurement_pred_<< std::endl;
 
     //Predicted measurement
     measurement_mean_ = Eigen::MatrixXd(measurement.rows(),measurement.cols());
@@ -135,6 +145,7 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     for (int i = 0; i< sigma_weight_mean.cols();i++){
         measurement_mean_ += sigma_weight_mean(0,i) * measurement_pred_.col(i);
     }
+    std::cout<< "measurement_mean_ =" << measurement_mean_<< std::endl;
 
     //Innovation Covariances & cross_covariance
     Eigen::MatrixXd S(Q_.rows(),Q_.cols());
@@ -146,6 +157,7 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
                     (measurement_pred_.col(i)-measurement_mean_).transpose();
         
         //Cross Covariances
+        std::cout<< "sigma_point_col(i): "<< sigma_points_new_.col(i)<<std::endl;
         C_cov += sigma_weight_cov(0,i) * (sigma_points_new_.col(i)-states_mean_) *
                     (measurement_pred_.col(i)-measurement_mean_).transpose();
     }
@@ -153,7 +165,10 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     S += Q_;
 
     // Calculate Update K
-    Eigen::MatrixXd K = C_cov * S.transpose();
+    Eigen::MatrixXd K = C_cov * S.inverse();
+
+    std::cout<< "K: "<< K<<std::endl;
+    std::cout<< "state Gain: "<<K * (measurement - measurement_mean_)<<std::endl;
 
     //Find Corrected Mean
     states_now_ = states_mean_ + K * (measurement - measurement_mean_);
@@ -162,8 +177,26 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     P_now_ = P_mean_ - K * S * K.transpose();
 
 
-    std::cout<< "states_now =" << states_now_<< std::endl;
-    std::cout<< "P_now_ =" << P_now_<< std::endl;
+    // std::cout<< "states_now =" << states_now_<< std::endl;
+    // std::cout<< "P_now_ =" << P_now_<< std::endl;
+}
+
+
+void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
+    if (time_now < 10){
+        std::cout<< "delta_t=" << time_now << std::endl;
+        statePrediction(time_now);
+        stateUpdate(measurement,time_now); 
+        // std::cout<<"position_prev_ before: ("<< states_prev_(0,0)<<", "<<states_prev_(1,0)<< ")"<<std::endl;
+        states_prev_= states_now_;
+        P_prev_ = P_now_;
+        // std::cout<<"position_prev_ after: ("<< states_prev_(0,0)<<", "<<states_prev_(1,0)<< ")"<<std::endl;
+        // prev_time_ = time_now;
+        
+        // std::cout<<"new prev_time_ - time_now:"<< prev_time_ - time_now <<std::endl;
+        std::cout<<"new states: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<< " ,"<<states_now_(3,0)<<" ,"<< states_now_(3,0) <<" )"<<std::endl;
+
+    }
 }
 
 Eigen::MatrixXd ObjectTracker::statePropagationCV(Eigen::MatrixXd sigma_points,double delta_t){
