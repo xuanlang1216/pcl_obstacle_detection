@@ -15,7 +15,7 @@ float rMax = 120;
 float tHmin = -2;
 float tHmax = -0.5;
 float tHDiff = 0.2;
-float hSensor = 1.5; //1.73
+float hSensor = 1.5; 
 
 // Variables for Component_clustering
 float roiM = 30; //distance to cluster
@@ -442,7 +442,11 @@ void getPointsInPcFrame(cv::Point2f rectPoints[], std::vector<cv::Point2f>& pcPo
 bool ruleBasedFilter(std::vector<cv::Point2f> pcPoints, float maxZ, int numPoints){
     bool isPromising = false;
     //minnimam points thresh
-    if(numPoints < 100) return isPromising;
+    if(numPoints < 25) 
+    {
+        // std::cout<<"numPoints not promising: "<< numPoints<< std::endl;
+        return isPromising;
+    }
     // length is longest side of the rectangle while width is the shorter side.
     float width, length, height, area, ratio, mass;
 
@@ -465,6 +469,12 @@ bool ruleBasedFilter(std::vector<cv::Point2f> pcPoints, float maxZ, int numPoint
     }
     // assuming ground = sensor height
     height = maxZ + sensorHeight;
+
+    //testing the number of point:
+    // std::cout<<"# of point is: "<<numPoints<<std::endl;
+    // std::cout<<"object shape: ("<<height<<","<<width<<","<<length<<","<<area<<","<<ratio<<","<<mass<<")"<<std::endl;
+
+
     // assuming right angle
     area = dist1*dist2;
     mass = area*height;
@@ -501,7 +511,9 @@ bool ruleBasedFilter(std::vector<cv::Point2f> pcPoints, float maxZ, int numPoint
 
 void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints,
                     std::vector<pcl::PointCloud<pcl::PointXYZ>>& bbPoints){
+    
     for (int iCluster = 0; iCluster < clusteredPoints.size(); iCluster++){
+        // std::cout<< "processing cluster "<<iCluster<<std::endl;
         cv::Mat m (picScale*roiM, picScale*roiM, CV_8UC1, cv::Scalar(0));
         float initPX = clusteredPoints[iCluster][0].x + roiM/2;
         float initPY = clusteredPoints[iCluster][0].y + roiM/2;
@@ -555,7 +567,6 @@ void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints
 
             sumX += offsetX;
             sumY += offsetY; 
-
         }
         // L shape fitting parameters
         float xDist = maxMx - minMx;
@@ -628,14 +639,21 @@ void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints
                 pcl::PointXYZ o;
                 o.x = pcPoints[pclP].x;
                 o.y = pcPoints[pclP].y;
-                if(pclH == 0) o.z = -sensorHeight;
-                else o.z = maxZ;
+                if(pclH == 0) 
+                {
+                    o.z = -sensorHeight;
+                }
+                else 
+                {
+                    o.z = maxZ;
+                }
                 oneBbox.push_back(o);
             }
         }
         bbPoints.push_back(oneBbox);
 //        clustered2D[iCluster] = m;
     }
+
 }
 
 std::vector<pcl::PointCloud<pcl::PointXYZ>> boxFitting(pcl::PointCloud<pcl::PointXYZ>::Ptr elevatedCloud,
@@ -645,7 +663,10 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>> boxFitting(pcl::PointCloud<pcl::Poin
     getClusteredPoints(elevatedCloud, cartesianData, clusteredPoints);
     std::vector<pcl::PointCloud<pcl::PointXYZ>>  bbPoints;
     getBoundingBox(clusteredPoints, bbPoints);
-    return bbPoints;
+    // std::cout<<"Find bbpoints: "<<bbPoints.size()<<std::endl;
+    // std::cout<<"Find clusterPoints: "<<clusteredPoints.size()<<std::endl;
+    return bbPoints; //use rule based filter
+    // return clusteredPoints; // don't use the rule based filter
 //    vector<vector<float>>  bBoxes(numCluster,  vector<float>(6));
 //
 //    return bBoxes;

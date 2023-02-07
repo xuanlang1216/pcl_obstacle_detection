@@ -17,6 +17,7 @@ Panels:
       - /2D Pose Estimate1
       - /2D Nav Goal1
       - /Publish Point1
+      - /Interact1
     Name: Tool Properties
     Splitter Ratio: 0.5886790156364441
   - Class: rviz/Views
@@ -138,13 +139,13 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /pcl/bounding_box
       Name: MarkerArray
       Namespaces:
-        {}
+        cube: true
       Queue Size: 100
-      Value: false
+      Value: true
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /pcl/tracker
@@ -161,10 +162,6 @@ Visualization Manager:
     Frame Rate: 30
   Name: root
   Tools:
-    - Class: rviz/Interact
-      Hide Inactive Objects: true
-    - Class: rviz/MoveCamera
-    - Class: rviz/Select
     - Class: rviz/FocusCamera
     - Class: rviz/Measure
     - Class: rviz/SetInitialPose
@@ -177,11 +174,15 @@ Visualization Manager:
     - Class: rviz/PublishPoint
       Single click: true
       Topic: /clicked_point
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
   Value: true
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 17.229543685913086
+      Distance: 1.0102137327194214
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -189,17 +190,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: -3.4617836475372314
+        Y: 12.369901657104492
+        Z: 9.162431716918945
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6047989130020142
+      Pitch: 0.4588004946708679
       Target Frame: <Fixed Frame>
-      Yaw: 4.553617000579834
+      Yaw: 1.8386378288269043
     Saved: ~
 Window Geometry:
   Displays:
@@ -217,5 +218,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1410
-  X: 275
-  Y: 27
+  X: 506
+  Y: 67

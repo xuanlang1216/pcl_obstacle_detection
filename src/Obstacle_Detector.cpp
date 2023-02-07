@@ -9,6 +9,7 @@
 #include <ctime>
 #include <chrono>
 #include <unordered_set>
+#include <algorithm>
 
 // Include PointCloud2 message
 #include <sensor_msgs/PointCloud2.h>
@@ -67,6 +68,8 @@ void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config&
     minLenRatio = config.BoxFit_minLenRatio; //min length of object for ratio check
     tPtPerM3 = config.BoxFit_tPtPerM3;      //min point count per bouding box volume
 
+    roiM = config.ComponentClustering_roiM;
+
 }
 
 Obstacle_Detector::Obstacle_Detector()
@@ -89,6 +92,28 @@ Obstacle_Detector::Obstacle_Detector()
     nh.getParam("/EuclideanClusterExtraction_MinClusterSize",EuclideanClusterExtraction_MinClusterSize);
     nh.getParam("/EuclideanClusterExtraction_MaxClusterSize",EuclideanClusterExtraction_MaxClusterSize);
     // raw_cloud = new pcl::PointCloud<pcl::PointXYZ>;
+
+   nh.getParam("GroundRemoval_rMin",rMin);
+   nh.getParam("GroundRemoval_rMax",rMax);
+   nh.getParam("GroundRemoval_tHmin",tHmin);
+   nh.getParam("GroundRemoval_tHmax",tHmax);
+   nh.getParam("GroundRemoval_tHDiff",tHDiff);
+   nh.getParam("GroundRemoval_hSensor",hSensor);
+
+   nh.getParam("ComponentClustering_roiM",roiM);
+   nh.getParam("ComponentClustering_kernelSize",kernelSize);
+
+
+   nh.getParam("BoxFitting_tHeightMin",tHeightMin);
+   nh.getParam("BoxFitting_tHeightMax",tHeightMax);
+   nh.getParam("BoxFitting_tWidthMin",tWidthMin);
+   nh.getParam("BoxFitting_tWidthMax",tWidthMax);
+   nh.getParam("BoxFitting_tLenMin",tLenMin);
+   nh.getParam("BoxFitting_tAreaMax",tAreaMax);
+   nh.getParam("BoxFitting_tRatioMin",tRatioMin);
+   nh.getParam("BoxFitting_tRatioMax",tRatioMax);
+   nh.getParam("BoxFitting_minLenRatio",minLenRatio);
+   nh.getParam("BoxFitting_tPtPerM3",tPtPerM3);
 
     // Dynamic Parameter Server & Function
     f = boost::bind(&dynamicParamCallback, _1, _2);
@@ -124,7 +149,7 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
     std::array<std::array<int,numGrid>,numGrid> cartesianData{};
     componentClustering(cluster_cloud,cartesianData,numCluster);
 
-    // ROS_INFO("Find %i clusters",numCluster);
+    ROS_INFO("Find %i clusters",numCluster);
 
     // To visualize the clustered cloud
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr visulized_cluster_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -134,21 +159,34 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
     // Draw Bounding Boxes
     std::vector<pcl::PointCloud<pcl::PointXYZ>> bounding_boxes = boxFitting(cluster_cloud,cartesianData,numCluster);
     visualization_msgs::MarkerArray visual_bouding_box;
+
+    //store the measurmeent distance
+    std::vector<Eigen::Vector4f> centroids;
+
     // Draw_Bounding_Box()
-    
     int ID = 0;
     if (bounding_boxes.size() != 0)
     {
         for (auto box : bounding_boxes)
         {
             visual_bouding_box.markers.push_back(Draw_Bounding_Box(box,pointcloud_header,ID));
+
+            //calculate centroid
+            Eigen::Vector4f centroid;
+            pcl::compute3DCentroid(box,centroid);
+            // std::cout<<centroid<<std::endl;
+            centroids.push_back(centroid);
+            // std::cout<<centroids[ID]<<std::endl;
             //Update the tracker
-            updateTracker(box,time_diff);
+            // updateTracker(box,time_diff);
             // visual_bouding_box.header = pointcloud_header;
             ID++;
         }  
     }
     ROS_INFO("find %i objects",ID);
+
+    // Tracking Update
+    updateTrackers(centroids,time_diff);
 
     visualization_msgs::MarkerArray visual_traker = Draw_Trackers(pointcloud_header);
 
@@ -169,86 +207,113 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
 
 }
 
-void Obstacle_Detector::updateTracker(pcl::PointCloud<pcl::PointXYZ>& object,double time_diff){
+void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,double time_diff){
 
 
-    Eigen::Vector4f centroid;
-    pcl::compute3DCentroid(object,centroid);
-    double x = centroid[0];
-    double y = centroid[1];
-    bool updated = false;
-    double min_dist = 1000000;
-    int min_dist_ID = -1;
-
-
-    if (Objects.size()!=0){
-        for (int i =0; i<Objects.size();i++){
-            double dist = sqrt(pow(Objects[i].states_now_(0,0)-x,2) + pow(Objects[i].states_now_(1,0)-y,2));
-            if (dist < min_dist){
-                min_dist = dist;
-                min_dist_ID = i;
-            }
-        }
+    for (auto& centroid:centroids)
+    {
+        double x = centroid[0];
+        double y = centroid[1];
+        double min_dist = 1000000;
+        int min_dist_ID = -1;
         
-        std::cout<< "Min_dist: "<< min_dist << ", ID: "<< min_dist_ID<<std::endl;
-        if (min_dist < 1 && min_dist_ID >= 0){ 
-            std::cout<<"Object(" << min_dist_ID<<") is updated"<<std::endl;
-            std::cout<<"Measurement :( " <<x<< " ,"<<y<<")"<<std::endl;
-            std::cout<<"Prev_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
-            Eigen::MatrixXd measure(2,1);
-            measure(0,0) = x;
-            measure(1,0) = y;
-            Objects[min_dist_ID].UKFUpdate(measure,time_diff);
-            std::cout<<"new_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
+
+        if (Objects.size()!=0){
+            for (int i =0; i<Objects.size();i++){
+                double dist = sqrt(pow(Objects[i].states_now_(0,0)-x,2) + pow(Objects[i].states_now_(1,0)-y,2));
+                if (dist < min_dist){
+                    min_dist = dist;
+                    min_dist_ID = i;
+                }
+            }
+            
+            // std::cout<< "Min_dist: "<< min_dist << ", ID: "<< min_dist_ID<<std::endl;
+            if (min_dist < 2 && min_dist_ID >= 0){ 
+                // std::cout<<"Object(" << min_dist_ID<<") is updated"<<std::endl;
+                // std::cout<<"Measurement :( " <<x<< " ,"<<y<<")"<<std::endl;
+                // std::cout<<"Prev_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
+                Eigen::MatrixXd measure(2,1);
+                measure(0,0) = x;
+                measure(1,0) = y;
+                Objects[min_dist_ID].UKFUpdate(measure,time_diff);
+                // std::cout<<"new_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
+            }
+            else if (min_dist >= 1 /*&& Objects.size() < 10*/){ //added object size constraints TODO: need to remove this later
+                std::cout<<"Adding new traker Because MinDist = "<<min_dist <<std::endl;
+                Objects.push_back(ObjectTracker(x,y,time_diff));
+            }
+
         }
-        else if (min_dist >=1 /*&& Objects.size() < 10*/){ //added object size constraints TODO: need to remove this later
+        else{
+            std::cout<<"Adding new traker"<<std::endl;
             Objects.push_back(ObjectTracker(x,y,time_diff));
         }
+    }
 
-
-
-
-
-
-
-        // for (auto& the_object : Objects)
-        // {
-        //     double dist = sqrt(pow(the_object.states_now_(0,0)-x,2) + pow(the_object.states_now_(1,0)-y,2));
-        //     if (dist < 0.5){
-        //         std::cout<<"position: ("<< the_object.states_now_(0,0)<<", "<<the_object.states_now_(1,0)<< ")"<<std::endl;
-        //         std::cout<<"measurement: ("<< x<<", "<<y<< ")"<<std::endl;
-        //         std::cout<<"dist: " << dist<<std::endl;
-
-        //         Eigen::MatrixXd measure(2,1);
-        //         measure(0,0) = x;
-        //         measure(1,0) = y;
-        //         the_object.UKFUpdate(measure,time_diff);
-        //         // std::cout<<"Displaying object right after update"<<std::endl;
-        //         // std::cout<<"the_object.x: "<< the_object.states_now_(0,0)<<std::endl;
-        //         // std::cout<<"the_object.y: "<< the_object.states_now_(1,0)<<std::endl;
-        //         updated = true;
-        //         break;
-        //     }
-        // }
-
-        // if (!updated){
-        //     Objects.push_back(ObjectTracker(x,y,time_diff));
-        // }
+    // for other objects, do a state propagation
+    for(int i =0; i<Objects.size();i++){
+        if (!Objects[i].updated && Objects[i].tracking_state == 2){  // if the object did not get updated this frame but got updated last frame
+            Objects[i].statePropagateOnly(time_diff);
+        }
+        
+        Objects[i].updated = false; //reset the updated state
 
     }
-    else{
-        std::cout<<"Adding new traker"<<std::endl;
-        Objects.push_back(ObjectTracker(x,y,time_diff));
-    }
+
 
     std::cout<<"object count: " << Objects.size()<<std::endl;
+}
 
-    // for (auto object3 : Objects)
-    // {
-    //     std::cout<<"Displaying object used to Update_Tracker"<<std::endl;
-    //     std::cout<<"object.x: "<< object3.states_now_(0,0)<<std::endl;
-    //     std::cout<<"object.y: "<< object3.states_now_(1,0)<<std::endl;
-    // }
+visualization_msgs::Marker creatVelocityMarker (uint32_t shape,int ID,std::string ns,std_msgs::Header header,float x_pos,float y_pos,float vel){
+    visualization_msgs::Marker marker;
+    
+        marker.ns = ns;
+        marker.id = ID;
+        marker.type = shape;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        marker.header = header;
+
+        marker.pose.position.x = x_pos;
+        marker.pose.position.y = y_pos;
+        marker.pose.position.z = -1.0;
+        
+
+        if (ns.compare("x_vel")){
+            marker.pose.orientation.x = 1.0;
+            marker.pose.orientation.y = 0.0;
+            marker.pose.orientation.z = 0.0;
+            marker.pose.orientation.w = 0.0;
+            marker.scale.x = vel;
+            marker.scale.y = 0.5;
+            marker.scale.z = 0.5;
+            marker.color.r = 255.0f;
+            marker.color.g = 0.0f;
+            marker.color.b = 0.0;
+        }
+        else if (ns.compare("y_vel")){
+            marker.pose.orientation.x = 0.707;
+            marker.pose.orientation.y = 0.707;
+            marker.pose.orientation.z = 0.0;
+            marker.pose.orientation.w = 0.0;
+            marker.scale.x = vel;
+            marker.scale.y = 0.5;
+            marker.scale.z = 0.5;
+            marker.color.r = 0.0f;
+            marker.color.g = 0.0f;
+            marker.color.b = 255.0f;
+        }
+        else{
+            ROS_ERROR("Velocity Marker Wrong NameSpace (ns): %s",ns.data());
+        }
+
+
+        marker.color.a = 1.0;
+
+        marker.lifetime = ros::Duration(500);
+
+    return marker;
+
 
 }
 
@@ -256,9 +321,21 @@ visualization_msgs::MarkerArray Obstacle_Detector::Draw_Trackers(std_msgs::Heade
 {
     visualization_msgs::MarkerArray visual_objects;
     int ID = 1;
-
     for (auto object : Objects)
     {
+        float x_pos = object.states_now_(0,0);
+        float y_pos = object.states_now_(1,0);
+        float x_vel = object.states_now_(2,0);
+        float y_vel = object.states_now_(3,0);
+        
+        // if (x_vel != 0){
+        //     visual_objects.markers.push_back(creatVelocityMarker(0,ID,"x_vel",header,x_pos,y_pos,x_vel));
+        // }
+        // if (y_vel != 0){
+        //     visual_objects.markers.push_back(creatVelocityMarker(0,ID,"y_vel",header,x_pos,y_pos,y_vel));
+        // }
+        
+
         uint32_t shape = visualization_msgs::Marker::CUBE;
         visualization_msgs::Marker marker;
 
@@ -280,13 +357,26 @@ visualization_msgs::MarkerArray Obstacle_Detector::Draw_Trackers(std_msgs::Heade
         marker.scale.x = 1;
         marker.scale.y = 1;
         marker.scale.z = 1;
+        
+        if (object.tracking_state == 1){ //just initialized
+            marker.color.r = 255.0f;
+            marker.color.g = 0.0f;
+            marker.color.b = 0.0;
+        }
+        else if(object.tracking_state == 2){ //got updated this frame
+            marker.color.r = 0.0f;
+            marker.color.g = 255.0f;
+            marker.color.b = 0.0f;
+        }
+        else if(object.tracking_state == 3){ //no update this frame
+            marker.color.r = 0.0f;
+            marker.color.g = 0.0f;
+            marker.color.b = 255.0f;
+        }
 
-        marker.color.r = 255.0f;
-        marker.color.g = 0.0f;
-        marker.color.b = 0.0;
         marker.color.a = 1.0;
 
-        marker.lifetime = ros::Duration(0.1);
+        marker.lifetime = ros::Duration(500);
 
         visual_objects.markers.push_back(marker);
 

@@ -1,5 +1,8 @@
-
-
+POINTCLOUD_TOPIC : "/os2/points"
+PUBLISH_GROUND : "/pcl/Ground"
+PUBLISH_CLUSTER : "/pcl/cluster"
+PUBLISH_BOX : "/pcl/bounding_box"
+PUBLISH_TRACKER : "/pcl/tracker"
 VoxelGridLeafSize : 0.5
 DifferenceOfNormals_Scale1 : 1
 DifferenceOfNormals_Scale1 : 3

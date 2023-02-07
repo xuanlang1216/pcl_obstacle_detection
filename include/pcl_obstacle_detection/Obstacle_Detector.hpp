@@ -91,7 +91,7 @@ class Obstacle_Detector
         // void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config& config, uint32_t level);
 
         void process_pc(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg);
-        void updateTracker(pcl::PointCloud<pcl::PointXYZ>& object,double time_diff);
+        void updateTrackers(std::vector<Eigen::Vector4f> centroids,double time_diff);
         visualization_msgs::MarkerArray Draw_Trackers(std_msgs::Header header);
 
 

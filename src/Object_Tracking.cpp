@@ -10,13 +10,16 @@
 
 ObjectTracker::ObjectTracker(float x_int,float y_int,double ini_time){
     // std::cout<< "Constructing ObjectTracker"<<std::endl;
+    tracking_state = 1; // just initialized
+    updated = false;
+
     prev_time_ = ini_time;
 
     states_prev_ = Eigen::MatrixXd(4,1);
-    states_prev_<< x_int,y_int,0.01,0.01;
+    states_prev_<< x_int,y_int,0.0,0.0;
 
     states_now_ = Eigen::MatrixXd(4,1); //initial condition
-    states_now_ << x_int,y_int,0.01,0.01;
+    states_now_ << x_int,y_int,0.0,0.0;
     
     P_prev_ = Eigen::MatrixXd(4,4);
     P_prev_<< 1e-6,0,0,0,
@@ -24,22 +27,22 @@ ObjectTracker::ObjectTracker(float x_int,float y_int,double ini_time){
             0,0,1e-6,0,
             0,0,0,1e-6;
     P_now_ = Eigen::MatrixXd(4,4);
-    P_now_<< 1,0,0,0,
-            0,1,0,0,
-            0,0,1,0,
-            0,0,0,1;
+    P_now_<< 1e-6,0,0,0,
+            0,1e-6,0,0,
+            0,0,1e-6,0,
+            0,0,0,1e-6;
     
     R_ = Eigen::MatrixXd(4,4);
-    R_ << 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0; //testing; no variance
-    // R_<< 0.1,0,0,0,
-    //      0,0.1,0,0,
-    //      0,0,0.1,0,
-    //      0,0,0,0.1;
+    // R_ << 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0; //testing; no variance
+    R_<< 0.1,0,0,0,
+         0,0.1,0,0,
+         0,0,0.1,0,
+         0,0,0,0.1;
 
     Q_ = Eigen::MatrixXd(2,2);
-    Q_ << 0,0,0,0;
+    // Q_ << 0,0,0,0;
 
-    // Q_<< 0.1,0,0,0.1;
+    Q_<< 0.1,0,0,0.1;
 
     
 
@@ -107,7 +110,7 @@ void ObjectTracker::statePrediction(double delta_t){
         // std::cout<< "states_mean =" << states_mean_(i,0)<< std::endl;
     }
     
-    std::cout<< "states_mean_ =" << states_mean_<< std::endl;
+    // std::cout<< "states_mean_ =" << states_mean_<< std::endl;
 
     //Predict the covariances
     P_mean_ = Eigen::MatrixXd(L,L);
@@ -119,14 +122,14 @@ void ObjectTracker::statePrediction(double delta_t){
     P_mean_ += R_;
 
 
-    std::cout<< "P_mean_=" << P_mean_<< std::endl;
+    // std::cout<< "P_mean_=" << P_mean_<< std::endl;
 
     //Calculate New sets of Sigma_Points
     sigma_points_new_ = sigmaPointSampling(states_mean_,P_mean_);
 
 
 
-    std::cout<< "sigma_points_new_=" << sigma_points_new_<< std::endl;
+    // std::cout<< "sigma_points_new_=" << sigma_points_new_<< std::endl;
 
 
 }
@@ -137,19 +140,46 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
 
     //Predict Observation Points
     measurement_pred_ = measurementPropagationCV(sigma_points_new_,delta_t);
-    std::cout<< "measurement_pred_ =" << measurement_pred_<< std::endl;
 
     //Predicted measurement
-    measurement_mean_ = Eigen::MatrixXd(measurement.rows(),measurement.cols());
+    measurement_mean_ = Eigen::MatrixXd(measurement_.rows(),measurement_.cols());
 
     for (int i = 0; i< sigma_weight_mean.cols();i++){
         measurement_mean_ += sigma_weight_mean(0,i) * measurement_pred_.col(i);
     }
-    std::cout<< "measurement_mean_ =" << measurement_mean_<< std::endl;
+
 
     //Innovation Covariances & cross_covariance
-    Eigen::MatrixXd S(Q_.rows(),Q_.cols());
-    Eigen::MatrixXd C_cov(states_mean_.rows(),measurement.rows());
+    Eigen::MatrixXd S = Eigen::MatrixXd::Zero(Q_.rows(),Q_.cols());
+    Eigen::MatrixXd C_cov = Eigen::MatrixXd::Zero(states_mean_.rows(),measurement_.rows());
+
+    
+    // std::cout<< "measurement_mean_ =" <<std::endl;
+    // std::cout<< measurement_mean_<< std::endl;
+
+    // std::cout<< "S:"<<std::endl;
+    // std::cout<< S<<std::endl;
+
+    // std::cout<< "states_mean_.rows()"<<std::endl;
+    // std::cout<< states_mean_.rows()<<std::endl;
+
+    // std::cout<< "measurement_.rows()"<<std::endl;
+    // std::cout<< measurement_.rows()<<std::endl;
+
+    // std::cout<< "C_cov initial:"<<std::endl;
+    // std::cout<<C_cov<<std::endl;
+
+    // std::cout<<"measurement_pred_:"<<std::endl;
+    // std::cout<<measurement_pred_<<std::endl;
+
+    // std::cout<<"sigma_points_new_:"<<std::endl;
+    // std::cout<<sigma_points_new_<<std::endl;
+
+    // std::cout<<"states_mean_:"<<std::endl;
+    // std::cout<< states_mean_<<std::endl;
+    
+    // std::cout<<"sigma_weight_cov: "<<std::endl;
+    // std::cout<<sigma_weight_cov<<std::endl;
 
     for (int i = 0; i< sigma_weight_cov.cols();i++){
         //Innovation Covariances
@@ -157,7 +187,9 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
                     (measurement_pred_.col(i)-measurement_mean_).transpose();
         
         //Cross Covariances
-        std::cout<< "sigma_point_col(i): "<< sigma_points_new_.col(i)<<std::endl;
+        // std::cout<< "C_cov "<<i<<": "<<std::endl;
+        // std::cout<<C_cov<<std::endl;
+
         C_cov += sigma_weight_cov(0,i) * (sigma_points_new_.col(i)-states_mean_) *
                     (measurement_pred_.col(i)-measurement_mean_).transpose();
     }
@@ -167,11 +199,17 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     // Calculate Update K
     Eigen::MatrixXd K = C_cov * S.inverse();
 
-    std::cout<< "K: "<< K<<std::endl;
-    std::cout<< "state Gain: "<<K * (measurement - measurement_mean_)<<std::endl;
+    // std::cout<< "C_cov: "<< C_cov<<std::endl;
+    // std::cout<<"S_inverse"<<S.inverse()<<std::endl;
+
+    // std::cout<< "K: "<< K<<std::endl;
+    // std::cout<<"measurement_"<< measurement_ <<std::endl;
+    // std::cout<<"measurement_mean"<< measurement_mean_ <<std::endl;
+    // std::cout<<"Measurement DIfference"<<(measurement_ - measurement_mean_)<<std::endl;
+    // std::cout<< "state Gain: "<<K * (measurement_ - measurement_mean_)<<std::endl;
 
     //Find Corrected Mean
-    states_now_ = states_mean_ + K * (measurement - measurement_mean_);
+    states_now_ = states_mean_ + K * (measurement_- measurement_mean_);
 
     //Find Corrected Covariances
     P_now_ = P_mean_ - K * S * K.transpose();
@@ -184,18 +222,41 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
 
 void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
     if (time_now < 10){
-        std::cout<< "delta_t=" << time_now << std::endl;
+        // std::cout<< "delta_t=" << time_now << std::endl;
+        // std::cout<< "Measurement: ("<< measurement(0,0)<<" ,"<<measurement(1,0)<<")"<<std::endl;
+        // std::cout<<"states before update: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<<", "<<states_now_(2,0)<<", "<<states_now_(3,0)<< ")"<<std::endl;
+        // std::cout<<"Covariance before update"<< P_now_<<std::endl;
         statePrediction(time_now);
         stateUpdate(measurement,time_now); 
-        // std::cout<<"position_prev_ before: ("<< states_prev_(0,0)<<", "<<states_prev_(1,0)<< ")"<<std::endl;
+        // std::cout<<"states after update: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<<", "<<states_now_(2,0)<<", "<<states_now_(3,0)<< ")"<<std::endl;
+        // std::cout<<"Covariance after update"<< P_now_<<std::endl;
         states_prev_= states_now_;
         P_prev_ = P_now_;
+
+        tracking_state = 2; // got updated
+        updated = true;
         // std::cout<<"position_prev_ after: ("<< states_prev_(0,0)<<", "<<states_prev_(1,0)<< ")"<<std::endl;
         // prev_time_ = time_now;
         
         // std::cout<<"new prev_time_ - time_now:"<< prev_time_ - time_now <<std::endl;
-        std::cout<<"new states: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<< " ,"<<states_now_(3,0)<<" ,"<< states_now_(3,0) <<" )"<<std::endl;
+        // std::cout<<"new states: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<< " ,"<<states_now_(2,0)<<" ,"<< states_now_(3,0) <<" )"<<std::endl;
+    }
+    else{
+        tracking_state = 3;
+    }
+}
 
+
+void ObjectTracker::statePropagateOnly(double delta_t){
+    // using CV model
+    if ((delta_t < 10)){
+        states_now_(0,0) = states_now_(0,0) + states_now_(0,0) * delta_t;
+        states_now_(1,0) = states_now_(1,0) + states_now_(1,0) * delta_t;
+        states_now_(2,0) = states_now_(2,0);
+        states_now_(3,0) = states_now_(3,0);
+        
+        states_prev_ = states_now_;
+        tracking_state = 3;
     }
 }
 

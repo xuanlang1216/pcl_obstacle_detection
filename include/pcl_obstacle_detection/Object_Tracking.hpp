@@ -28,6 +28,9 @@ class ObjectTracker{
         Eigen::MatrixXd sigma_points_new_; //new sets of Sigma points after state propagation
 
 
+        int tracking_state; //1: just initilized, 2: updated last frame, 3: no update last frame, 4:lost tracked
+
+
         double prev_time_;
         double curr_time;
 
@@ -55,6 +58,10 @@ class ObjectTracker{
         Eigen::MatrixXd Q_; //Process Noise
         Eigen::MatrixXd R_; //Measurement Noise
 
+        bool updated; // used to store if the object is update last frame
+
+        int ID; // ID of the the Object for tracking
+
         /*
         Constructor
         */
@@ -74,6 +81,8 @@ class ObjectTracker{
         void stateUpdate(Eigen::MatrixXd measurement,double delta_t);
 
         void UKFUpdate(Eigen::MatrixXd measurement,double time_now);
+
+        void statePropagateOnly(double delta_t);
 
 
         Eigen::MatrixXd statePropagationCV(Eigen::MatrixXd sigma_points,double delta_t);
