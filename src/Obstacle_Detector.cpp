@@ -281,56 +281,86 @@ void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,do
 visualization_msgs::Marker creatVelocityMarker (int ID,std_msgs::Header header,float x_pos,float y_pos,float x_vel,float y_vel){
     visualization_msgs::Marker marker;
     
-        marker.ns = "velocity";
-        marker.id = ID;
-        marker.type = visualization_msgs::Marker::ARROW;
-        marker.action = visualization_msgs::Marker::ADD;
+    marker.ns = "velocity";
+    marker.id = ID;
+    marker.type = visualization_msgs::Marker::ARROW;
+    marker.action = visualization_msgs::Marker::ADD;
 
-        marker.header = header;
+    marker.header = header;
 
-        // marker.pose.position.x = x_pos;
-        // marker.pose.position.y = y_pos;
-        // marker.pose.position.z = -1.0;
-        // marker.pose.orientation.x = 1.0;
-        // marker.pose.orientation.y = 0.0;
-        // marker.pose.orientation.z = 0.0;
-        // marker.pose.orientation.w = 0.0;
-
-
-        double arrow_length = 5.0;
-        double distance = sqrt(pow(x_vel,2)+pow(y_vel,2));
-        double x_len = 5 * x_vel / distance;
-        double y_len = 5 * y_vel / distance;
-        
+    // marker.pose.position.x = x_pos;
+    // marker.pose.position.y = y_pos;
+    // marker.pose.position.z = -1.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
 
 
-        geometry_msgs::Point start;
-        start.x = x_pos;
-        start.y = y_pos;
-        start.z = -1;
-
-        geometry_msgs::Point end;
-        end.x = x_pos + x_len;
-        end.y = y_pos + y_len;
-        end.z = -1;
-        
-        marker.points = std::vector<geometry_msgs::Point>{start,end};
-        
-        marker.scale.x = 0.1;
-        marker.scale.y = 0.5;
-        marker.scale.z = 0.5;
-        marker.color.r = 255.0f;
-        marker.color.g = 0.0f;
-        marker.color.b = 0.0;
+    double arrow_length = 5.0;
+    double distance = sqrt(pow(x_vel,2)+pow(y_vel,2));
+    double x_len = 5 * x_vel / distance;
+    double y_len = 5 * y_vel / distance;
+    
 
 
-        marker.color.a = 1.0;
+    geometry_msgs::Point start;
+    start.x = x_pos;
+    start.y = y_pos;
+    start.z = -1;
 
-        marker.lifetime = ros::Duration(500);
+    geometry_msgs::Point end;
+    end.x = x_pos + x_len;
+    end.y = y_pos + y_len;
+    end.z = -1;
+    
+    marker.points = std::vector<geometry_msgs::Point>{start,end};
+    
+    marker.scale.x = 0.1;
+    marker.scale.y = 0.5;
+    marker.scale.z = 0.5;
+    marker.color.r = 255.0f;
+    marker.color.g = 0.0f;
+    marker.color.b = 0.0;
+
+
+    marker.color.a = 1.0;
+
+    marker.lifetime = ros::Duration(1);
 
     return marker;
+}
 
+visualization_msgs::Marker createPathMarker(int ID,std_msgs::Header header,std::vector<double> x_path,std::vector<double> y_path){
+    
+    visualization_msgs::Marker marker;
+    marker.ns = "Path";
+    marker.id = ID;
+    marker.type = visualization_msgs::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.points = std::vector<geometry_msgs::Point>{};
+    marker.header = header;
 
+    for (int i =0; i<x_path.size();i++){
+        geometry_msgs::Point temp;
+        temp.x = x_path[i];
+        temp.y = y_path[i];
+        temp.z = -1;
+        marker.points.push_back(temp);
+    }
+
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    marker.scale.x = 0.1;
+    marker.color.r = 0.0f;
+    marker.color.g = 0.0f;
+    marker.color.b = 255.0f;
+    marker.color.a = 1.0;
+    marker.lifetime = ros::Duration(1);
+
+    return marker;
 }
 
 visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header header)
@@ -349,6 +379,14 @@ visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header
         if (sqrt(pow(x_vel,2)+pow(y_vel,2)) > 0.1){
             // ROS_INFO("object %li have small vel: x_vel: %f, y_vel: %f",object.ID,x_vel,y_vel);
             visual_objects.markers.push_back(creatVelocityMarker(object.ID,header,x_pos,y_pos,x_vel,y_vel));
+        }
+
+        //add marker for pathes
+        if (object.x_history.size() == object.y_history.size() && object.x_history.size()>1){
+            visual_objects.markers.push_back(createPathMarker(object.ID,header,object.x_history,object.y_history));
+        }
+        else{
+            ROS_ERROR("Path have different length!");
         }
         
 
@@ -392,7 +430,7 @@ visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header
 
         marker.color.a = 1.0;
 
-        marker.lifetime = ros::Duration(500);
+        marker.lifetime = ros::Duration(1);
 
         visual_objects.markers.push_back(marker);
 
@@ -423,7 +461,7 @@ visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header
         marker_text.scale.x = 0.3;
         marker_text.scale.y = 0.3;
         marker_text.scale.z = 0.3;
-        marker_text.lifetime = ros::Duration(500);
+        marker_text.lifetime = ros::Duration(1);
         visual_objects.markers.push_back(marker_text);
     }
 

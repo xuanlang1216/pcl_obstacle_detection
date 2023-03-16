@@ -8,8 +8,6 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/common/common.h>
 #include <pcl/common/centroid.h>
-
-#include <vector>
 #include <array>
 
 class ObjectTracker{
@@ -50,6 +48,9 @@ class ObjectTracker{
         Eigen::Matrix<float,5,5> F_;
         Eigen::Matrix<float,5,5> H_;
 
+        std::vector<double> x_history;
+        std::vector<double> y_history;
+        // std::vector<double> z_history;
 
 
 

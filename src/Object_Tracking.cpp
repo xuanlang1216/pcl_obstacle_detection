@@ -52,6 +52,11 @@ ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial
     beta = 2;
     lamda = pow(alpha,2) * (L+ki) - L;
 
+
+    // update history:
+    x_history.push_back(states_now_(0,0));
+    y_history.push_back(states_now_(1,0));
+
     calculateWeight();
 
 }
@@ -242,6 +247,12 @@ void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
         
         // std::cout<<"new prev_time_ - time_now:"<< prev_time_ - time_now <<std::endl;
         // std::cout<<"new states: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<< " ,"<<states_now_(2,0)<<" ,"<< states_now_(3,0) <<" )"<<std::endl;
+
+
+        // update history:
+        x_history.push_back(states_now_(0,0));
+        y_history.push_back(states_now_(1,0));
+        // z_history.push_back(states_now_(2,0));
     }
     else{
         tracking_state = 3;
@@ -259,6 +270,12 @@ void ObjectTracker::statePropagateOnly(double delta_t){
         states_now_(3,0) = states_now_(3,0);
         
         states_prev_ = states_now_;
+
+        // update history:
+        x_history.push_back(states_now_(0,0));
+        y_history.push_back(states_now_(1,0));
+        // z_history.push_back(states_now_(2,0));
+
         tracking_state = 3;
     }
 }
