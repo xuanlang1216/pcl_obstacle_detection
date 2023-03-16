@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+
+  <rosparam file="$(find pcl_obstacle_detection)/config/kitti.yaml" />
+
+  <node name="pcl_obstacle_detection" pkg="pcl_obstacle_detection" type="pcl_obstacle_detect_node" output="screen">
+
+  </node>
+
+  <!-- Dynamic Reconfigure GUI -->
+  <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen" />
+
+
+  <!-- Rviz -->
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find pcl_obstacle_detection)/rviz/kitti.rviz" output="log" respawn="true" />
+
+</launch>

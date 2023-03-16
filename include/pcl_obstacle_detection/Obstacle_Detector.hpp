@@ -15,6 +15,9 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <pcl_obstacle_detection/StampedObject.h>
+#include <pcl_obstacle_detection/StampedObjectArray.h>
+#include <geometry_msgs/Point.h>
 
 //Dynamic Reconfig
 #include <dynamic_reconfigure/server.h>
@@ -66,14 +69,17 @@ class Obstacle_Detector
         ros::Publisher pub_cluster_cloud;
         ros::Publisher pub_bounding_box;
         ros::Publisher pub_trakers;
+        ros::Publisher pub_objects;
 
         std::string POINTCLOUD_TOPIC;
         std::string PUBLISH_GROUND;
         std::string PUBLISH_CLUSTER;
         std::string PUBLISH_BOX;
         std::string PUBLISH_TRACKER;
+        std::string PUBLISH_OBJECT;
 
         std::vector<ObjectTracker> Objects;
+        int ID_count;
 
         // TODO: Find a way to use this
         // pcl::PointCloud<pcl::PointXYZ>::Ptr raw_cloud;
@@ -90,9 +96,10 @@ class Obstacle_Detector
 
         // void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config& config, uint32_t level);
 
-        void process_pc(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg);
-        void updateTrackers(std::vector<Eigen::Vector4f> centroids,double time_diff);
-        visualization_msgs::MarkerArray Draw_Trackers(std_msgs::Header header);
+        void processPointCloud(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg);
+        void updateTrackers(std::vector<Eigen::Vector4f> centroids,double time_now);
+        visualization_msgs::MarkerArray drawTrackers(std_msgs::Header header);
+        pcl_obstacle_detection::StampedObjectArray packObjects(std_msgs::Header header);
 
 
 

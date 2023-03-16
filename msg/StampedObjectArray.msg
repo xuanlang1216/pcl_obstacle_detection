@@ -1,0 +1,1 @@
+pcl_obstacle_detection/StampedObject[] objects

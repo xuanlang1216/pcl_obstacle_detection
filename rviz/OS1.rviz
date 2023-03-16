@@ -91,7 +91,7 @@ Visualization Manager:
       Color: 239; 41; 41
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -106,7 +106,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -136,13 +136,21 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /pcl/bounding_box
       Name: MarkerArray
       Namespaces:
-        {}
+        cube: true
       Queue Size: 100
-      Value: false
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /pcl/tracker
+      Name: MarkerArray
+      Namespaces:
+        cube: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 238; 238; 236
@@ -171,7 +179,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 21.413494110107422
+      Distance: 37.093849182128906
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -187,9 +195,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5197964906692505
+      Pitch: 0.4347965717315674
       Target Frame: <Fixed Frame>
-      Yaw: 0.0035796286538243294
+      Yaw: 6.1367621421813965
     Saved: ~
 Window Geometry:
   Displays:

@@ -8,18 +8,18 @@
 #include <pcl_obstacle_detection/Object_Tracking.hpp>
 
 
-ObjectTracker::ObjectTracker(float x_int,float y_int,double ini_time){
+ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in){
     // std::cout<< "Constructing ObjectTracker"<<std::endl;
     tracking_state = 1; // just initialized
     updated = false;
 
-    prev_time_ = ini_time;
+    prev_time_ = time_initial;
 
     states_prev_ = Eigen::MatrixXd(4,1);
-    states_prev_<< x_int,y_int,0.0,0.0;
+    states_prev_<< x_initial,y_initial,0.0,0.0;
 
     states_now_ = Eigen::MatrixXd(4,1); //initial condition
-    states_now_ << x_int,y_int,0.0,0.0;
+    states_now_ << x_initial,y_initial,0.0,0.0;
     
     P_prev_ = Eigen::MatrixXd(4,4);
     P_prev_<< 1e-6,0,0,0,
@@ -44,7 +44,7 @@ ObjectTracker::ObjectTracker(float x_int,float y_int,double ini_time){
 
     Q_<< 0.1,0,0,0.1;
 
-    
+    ID = ID_in;
 
     L = 4;
     alpha = 1e-3;
@@ -221,13 +221,15 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
 
 
 void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
-    if (time_now < 10){
+    double time_diff = time_now - prev_time_;
+
+    if (time_diff < 10){
         // std::cout<< "delta_t=" << time_now << std::endl;
         // std::cout<< "Measurement: ("<< measurement(0,0)<<" ,"<<measurement(1,0)<<")"<<std::endl;
         // std::cout<<"states before update: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<<", "<<states_now_(2,0)<<", "<<states_now_(3,0)<< ")"<<std::endl;
         // std::cout<<"Covariance before update"<< P_now_<<std::endl;
-        statePrediction(time_now);
-        stateUpdate(measurement,time_now); 
+        statePrediction(time_diff);
+        stateUpdate(measurement,time_diff); 
         // std::cout<<"states after update: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<<", "<<states_now_(2,0)<<", "<<states_now_(3,0)<< ")"<<std::endl;
         // std::cout<<"Covariance after update"<< P_now_<<std::endl;
         states_prev_= states_now_;
@@ -235,8 +237,8 @@ void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
 
         tracking_state = 2; // got updated
         updated = true;
+        prev_time_ = time_now;
         // std::cout<<"position_prev_ after: ("<< states_prev_(0,0)<<", "<<states_prev_(1,0)<< ")"<<std::endl;
-        // prev_time_ = time_now;
         
         // std::cout<<"new prev_time_ - time_now:"<< prev_time_ - time_now <<std::endl;
         // std::cout<<"new states: ("<< states_now_(0,0)<<", "<<states_now_(1,0)<< " ,"<<states_now_(2,0)<<" ,"<< states_now_(3,0) <<" )"<<std::endl;
@@ -244,11 +246,12 @@ void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
     else{
         tracking_state = 3;
     }
+
 }
 
 
 void ObjectTracker::statePropagateOnly(double delta_t){
-    // using CV model
+    // using Contant Velocity model
     if ((delta_t < 10)){
         states_now_(0,0) = states_now_(0,0) + states_now_(0,0) * delta_t;
         states_now_(1,0) = states_now_(1,0) + states_now_(1,0) * delta_t;

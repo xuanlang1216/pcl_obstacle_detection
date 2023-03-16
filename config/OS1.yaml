@@ -1,7 +1,9 @@
-POINTCLOUD_TOPIC : "/os1_cloud_node/points"
+POINTCLOUD_TOPIC : "/ouster/points"
 PUBLISH_GROUND : "/pcl/Ground"
 PUBLISH_CLUSTER : "/pcl/cluster"
 PUBLISH_BOX : "/pcl/bounding_box"
+PUBLISH_OBJECT : "/pcl/object"
+
 VoxelGridLeafSize : 0.5
 DifferenceOfNormals_Scale1 : 1
 DifferenceOfNormals_Scale1 : 3
@@ -11,3 +13,35 @@ EuclideanClusterExtraction_DistanceThreshold : 0.02
 EuclideanClusterExtraction_ClusterTolerance : 0.1
 EuclideanClusterExtraction_MinClusterSize : 100
 EuclideanClusterExtraction_MaxClusterSize : 25000
+
+VoxelGridLeafSize : 0.5
+DifferenceOfNormals_Scale1 : 1
+DifferenceOfNormals_Scale1 : 3
+DifferenceOfNormals_Threshold : 0.15
+DifferenceOfNormals_segradius : 2
+EuclideanClusterExtraction_DistanceThreshold : 0.02 
+EuclideanClusterExtraction_ClusterTolerance : 0.1
+EuclideanClusterExtraction_MinClusterSize : 100
+EuclideanClusterExtraction_MaxClusterSize : 25000
+
+GroundRemoval_rMin: 0.1
+GroundRemoval_rMax: 120
+GroundRemoval_tHmin: -3.4
+GroundRemoval_tHmax: 5.6
+GroundRemoval_tHDiff: 1.2
+GroundRemoval_hSensor: 0.4
+
+ComponentClustering_roiM: 100
+ComponentClustering_kernelSize: 3
+
+
+BoxFitting_tHeightMin: 0
+BoxFitting_tHeightMax: 10
+BoxFitting_tWidthMin: 0
+BoxFitting_tWidthMax: 10
+BoxFitting_tLenMin: 0
+BoxFitting_tAreaMax: 100
+BoxFitting_tRatioMin: 0
+BoxFitting_tRatioMax: 100
+BoxFitting_minLenRatio: 0
+BoxFitting_tPtPerM3: 10

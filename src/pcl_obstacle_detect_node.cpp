@@ -51,7 +51,7 @@ int main(int argc, char** argv)
     // my_tracker.UKFUpdate(m,0.100116);
 
     // Create a ROS Subscriber to IMAGE_TOPIC with a queue_size of 1 and a callback function to cloud_cb
-    // ros::Subscriber sub = nh.subscribe(POINTCLOUD_TOPIC, 1, process_pc);
+    // ros::Subscriber sub = nh.subscribe(POINTCLOUD_TOPIC, 1, processPointCloud);
 
 
     // // Create a ROS publisher to PUBLISH_TOPIC with a queue_size of 1

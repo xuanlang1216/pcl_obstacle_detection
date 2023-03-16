@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /Velodyne Points1
         - /Obstacle Cloud1
+        - /MarkerArray2/Status1
       Splitter Ratio: 0.5
     Tree Height: 683
   - Class: rviz/Selection
@@ -28,7 +29,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: Velodyne Points
+    SyncSource: Ground Cloud
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -151,14 +152,16 @@ Visualization Manager:
       Marker Topic: /pcl/tracker
       Name: MarkerArray
       Namespaces:
-        {}
+        basic_shapes: true
+        cube: true
+        velocity: true
       Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
     Default Light: true
-    Fixed Frame: velodyne
+    Fixed Frame: velo_link
     Frame Rate: 30
   Name: root
   Tools:
@@ -182,7 +185,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 22.576311111450195
+      Distance: 32.51274108886719
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

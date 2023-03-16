@@ -16,6 +16,7 @@
 
 
 
+
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -78,13 +79,15 @@ Obstacle_Detector::Obstacle_Detector()
     nh.getParam("/PUBLISH_GROUND", PUBLISH_GROUND);
     nh.getParam("/PUBLISH_CLUSTER", PUBLISH_CLUSTER);
     nh.getParam("/PUBLISH_BOX", PUBLISH_BOX);
-    nh.getParam("PUBLISH_TRACKER",PUBLISH_TRACKER);
+    nh.getParam("/PUBLISH_TRACKER",PUBLISH_TRACKER);
+    nh.getParam("/PUBLISH_OBJECT",PUBLISH_OBJECT);
 
-    sub_lidar_points = nh.subscribe(POINTCLOUD_TOPIC, 1, &Obstacle_Detector::process_pc,this);
+    sub_lidar_points = nh.subscribe(POINTCLOUD_TOPIC, 1, &Obstacle_Detector::processPointCloud,this);
     pub_ground_cloud = nh.advertise<sensor_msgs::PointCloud2>(PUBLISH_GROUND, 10);
     pub_cluster_cloud = nh.advertise<sensor_msgs::PointCloud2>(PUBLISH_CLUSTER, 10);
     pub_bounding_box = nh.advertise<visualization_msgs::MarkerArray>(PUBLISH_BOX,10);
     pub_trakers = nh.advertise<visualization_msgs::MarkerArray>(PUBLISH_TRACKER,10);
+    pub_objects = nh.advertise<pcl_obstacle_detection::StampedObjectArray>(PUBLISH_OBJECT,10);
 
     nh.getParam("/VoxelGridLeafSize",VoxelGridLeafSize);
     nh.getParam("/EuclideanClusterExtraction_DistanceThreshold",EuclideanClusterExtraction_DistanceThreshold);
@@ -93,27 +96,29 @@ Obstacle_Detector::Obstacle_Detector()
     nh.getParam("/EuclideanClusterExtraction_MaxClusterSize",EuclideanClusterExtraction_MaxClusterSize);
     // raw_cloud = new pcl::PointCloud<pcl::PointXYZ>;
 
-   nh.getParam("GroundRemoval_rMin",rMin);
-   nh.getParam("GroundRemoval_rMax",rMax);
-   nh.getParam("GroundRemoval_tHmin",tHmin);
-   nh.getParam("GroundRemoval_tHmax",tHmax);
-   nh.getParam("GroundRemoval_tHDiff",tHDiff);
-   nh.getParam("GroundRemoval_hSensor",hSensor);
+    nh.getParam("GroundRemoval_rMin",rMin);
+    nh.getParam("GroundRemoval_rMax",rMax);
+    nh.getParam("GroundRemoval_tHmin",tHmin);
+    nh.getParam("GroundRemoval_tHmax",tHmax);
+    nh.getParam("GroundRemoval_tHDiff",tHDiff);
+    nh.getParam("GroundRemoval_hSensor",hSensor);
 
-   nh.getParam("ComponentClustering_roiM",roiM);
-   nh.getParam("ComponentClustering_kernelSize",kernelSize);
+    nh.getParam("ComponentClustering_roiM",roiM);
+    nh.getParam("ComponentClustering_kernelSize",kernelSize);
 
 
-   nh.getParam("BoxFitting_tHeightMin",tHeightMin);
-   nh.getParam("BoxFitting_tHeightMax",tHeightMax);
-   nh.getParam("BoxFitting_tWidthMin",tWidthMin);
-   nh.getParam("BoxFitting_tWidthMax",tWidthMax);
-   nh.getParam("BoxFitting_tLenMin",tLenMin);
-   nh.getParam("BoxFitting_tAreaMax",tAreaMax);
-   nh.getParam("BoxFitting_tRatioMin",tRatioMin);
-   nh.getParam("BoxFitting_tRatioMax",tRatioMax);
-   nh.getParam("BoxFitting_minLenRatio",minLenRatio);
-   nh.getParam("BoxFitting_tPtPerM3",tPtPerM3);
+    nh.getParam("BoxFitting_tHeightMin",tHeightMin);
+    nh.getParam("BoxFitting_tHeightMax",tHeightMax);
+    nh.getParam("BoxFitting_tWidthMin",tWidthMin);
+    nh.getParam("BoxFitting_tWidthMax",tWidthMax);
+    nh.getParam("BoxFitting_tLenMin",tLenMin);
+    nh.getParam("BoxFitting_tAreaMax",tAreaMax);
+    nh.getParam("BoxFitting_tRatioMin",tRatioMin);
+    nh.getParam("BoxFitting_tRatioMax",tRatioMax);
+    nh.getParam("BoxFitting_minLenRatio",minLenRatio);
+    nh.getParam("BoxFitting_tPtPerM3",tPtPerM3);
+
+    ID_count = 1;
 
     // Dynamic Parameter Server & Function
     f = boost::bind(&dynamicParamCallback, _1, _2);
@@ -122,7 +127,7 @@ Obstacle_Detector::Obstacle_Detector()
 
 
 
-void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg)
+void Obstacle_Detector::processPointCloud(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg)
 {
     //
     ROS_DEBUG("Lidar Points Received");
@@ -183,14 +188,15 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
             ID++;
         }  
     }
-    ROS_INFO("find %i objects",ID);
+    ROS_INFO("Find %i Clustered Objects",ID);
 
     // Tracking Update
-    updateTrackers(centroids,time_diff);
+    updateTrackers(centroids,time_now);
 
-    visualization_msgs::MarkerArray visual_traker = Draw_Trackers(pointcloud_header);
+    visualization_msgs::MarkerArray visual_traker = drawTrackers(pointcloud_header);
 
-    //Update the tracker
+    //pack the objects:
+    pcl_obstacle_detection::StampedObjectArray publish_objects = packObjects(pointcloud_header);
 
     //Publish Ground cloud and obstacle cloud
     sensor_msgs::PointCloud2 cluster_cloud_msg;
@@ -204,10 +210,11 @@ void Obstacle_Detector::process_pc(const sensor_msgs::PointCloud2::ConstPtr& clo
     pub_cluster_cloud.publish(cluster_cloud_msg);
     pub_bounding_box.publish(visual_bouding_box);
     pub_trakers.publish(visual_traker);
+    pub_objects.publish(publish_objects);
 
 }
 
-void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,double time_diff){
+void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,double time_now){
 
 
     for (auto& centroid:centroids)
@@ -235,77 +242,86 @@ void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,do
                 Eigen::MatrixXd measure(2,1);
                 measure(0,0) = x;
                 measure(1,0) = y;
-                Objects[min_dist_ID].UKFUpdate(measure,time_diff);
+                Objects[min_dist_ID].UKFUpdate(measure,time_now);
                 // std::cout<<"new_Position: (" << Objects[min_dist_ID].states_now_(0,0)<<", "<<Objects[min_dist_ID].states_now_(1,0)<<")"<<std::endl;
             }
             else if (min_dist >= 1 /*&& Objects.size() < 10*/){ //added object size constraints TODO: need to remove this later
                 std::cout<<"Adding new traker Because MinDist = "<<min_dist <<std::endl;
-                Objects.push_back(ObjectTracker(x,y,time_diff));
+                Objects.push_back(ObjectTracker(x,y,time_now,ID_count));
+                ID_count += 1;
             }
 
         }
         else{
             std::cout<<"Adding new traker"<<std::endl;
-            Objects.push_back(ObjectTracker(x,y,time_diff));
+            Objects.push_back(ObjectTracker(x,y,time_now,ID_count));
+            ID_count += 1;
         }
     }
-
+    
     // for other objects, do a state propagation
     for(int i =0; i<Objects.size();i++){
         if (!Objects[i].updated && Objects[i].tracking_state == 2){  // if the object did not get updated this frame but got updated last frame
+            double time_diff = time_now - Objects[i].prev_time_;
             Objects[i].statePropagateOnly(time_diff);
         }
         
         Objects[i].updated = false; //reset the updated state
-
     }
+    
+    // Remove all objects that have not been updated for 5 sec
+    auto erase_loss_object = [time_now](ObjectTracker i){return time_now - i.prev_time_ > 5.0;};
+    auto find_loss_object = std::remove_if(Objects.begin(),Objects.end(),erase_loss_object);
+    Objects.erase(find_loss_object,Objects.end());
 
-
-    std::cout<<"object count: " << Objects.size()<<std::endl;
+    ROS_INFO("Tracking %i Objects",Objects.size());
+    // std::cout<<"object count: " << Objects.size()<<std::endl;
 }
 
-visualization_msgs::Marker creatVelocityMarker (uint32_t shape,int ID,std::string ns,std_msgs::Header header,float x_pos,float y_pos,float vel){
+visualization_msgs::Marker creatVelocityMarker (int ID,std_msgs::Header header,float x_pos,float y_pos,float x_vel,float y_vel){
     visualization_msgs::Marker marker;
     
-        marker.ns = ns;
+        marker.ns = "velocity";
         marker.id = ID;
-        marker.type = shape;
+        marker.type = visualization_msgs::Marker::ARROW;
         marker.action = visualization_msgs::Marker::ADD;
 
         marker.header = header;
 
-        marker.pose.position.x = x_pos;
-        marker.pose.position.y = y_pos;
-        marker.pose.position.z = -1.0;
+        // marker.pose.position.x = x_pos;
+        // marker.pose.position.y = y_pos;
+        // marker.pose.position.z = -1.0;
+        // marker.pose.orientation.x = 1.0;
+        // marker.pose.orientation.y = 0.0;
+        // marker.pose.orientation.z = 0.0;
+        // marker.pose.orientation.w = 0.0;
+
+
+        double arrow_length = 5.0;
+        double distance = sqrt(pow(x_vel,2)+pow(y_vel,2));
+        double x_len = 5 * x_vel / distance;
+        double y_len = 5 * y_vel / distance;
         
 
-        if (ns.compare("x_vel")){
-            marker.pose.orientation.x = 1.0;
-            marker.pose.orientation.y = 0.0;
-            marker.pose.orientation.z = 0.0;
-            marker.pose.orientation.w = 0.0;
-            marker.scale.x = vel;
-            marker.scale.y = 0.5;
-            marker.scale.z = 0.5;
-            marker.color.r = 255.0f;
-            marker.color.g = 0.0f;
-            marker.color.b = 0.0;
-        }
-        else if (ns.compare("y_vel")){
-            marker.pose.orientation.x = 0.707;
-            marker.pose.orientation.y = 0.707;
-            marker.pose.orientation.z = 0.0;
-            marker.pose.orientation.w = 0.0;
-            marker.scale.x = vel;
-            marker.scale.y = 0.5;
-            marker.scale.z = 0.5;
-            marker.color.r = 0.0f;
-            marker.color.g = 0.0f;
-            marker.color.b = 255.0f;
-        }
-        else{
-            ROS_ERROR("Velocity Marker Wrong NameSpace (ns): %s",ns.data());
-        }
+
+        geometry_msgs::Point start;
+        start.x = x_pos;
+        start.y = y_pos;
+        start.z = -1;
+
+        geometry_msgs::Point end;
+        end.x = x_pos + x_len;
+        end.y = y_pos + y_len;
+        end.z = -1;
+        
+        marker.points = std::vector<geometry_msgs::Point>{start,end};
+        
+        marker.scale.x = 0.1;
+        marker.scale.y = 0.5;
+        marker.scale.z = 0.5;
+        marker.color.r = 255.0f;
+        marker.color.g = 0.0f;
+        marker.color.b = 0.0;
 
 
         marker.color.a = 1.0;
@@ -317,10 +333,11 @@ visualization_msgs::Marker creatVelocityMarker (uint32_t shape,int ID,std::strin
 
 }
 
-visualization_msgs::MarkerArray Obstacle_Detector::Draw_Trackers(std_msgs::Header header)
+visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header header)
 {
     visualization_msgs::MarkerArray visual_objects;
-    int ID = 1;
+    // add Bounding box
+    // ROS_INFO("%i objects to draw",Objects.size());
     for (auto object : Objects)
     {
         float x_pos = object.states_now_(0,0);
@@ -328,19 +345,18 @@ visualization_msgs::MarkerArray Obstacle_Detector::Draw_Trackers(std_msgs::Heade
         float x_vel = object.states_now_(2,0);
         float y_vel = object.states_now_(3,0);
         
-        // if (x_vel != 0){
-        //     visual_objects.markers.push_back(creatVelocityMarker(0,ID,"x_vel",header,x_pos,y_pos,x_vel));
-        // }
-        // if (y_vel != 0){
-        //     visual_objects.markers.push_back(creatVelocityMarker(0,ID,"y_vel",header,x_pos,y_pos,y_vel));
-        // }
+        // only draw velocity that is greater than 0.1
+        if (sqrt(pow(x_vel,2)+pow(y_vel,2)) > 0.1){
+            // ROS_INFO("object %li have small vel: x_vel: %f, y_vel: %f",object.ID,x_vel,y_vel);
+            visual_objects.markers.push_back(creatVelocityMarker(object.ID,header,x_pos,y_pos,x_vel,y_vel));
+        }
         
 
         uint32_t shape = visualization_msgs::Marker::CUBE;
         visualization_msgs::Marker marker;
 
         marker.ns = "cube";
-        marker.id = ID;
+        marker.id = object.ID;
         marker.type = shape;
         marker.action = visualization_msgs::Marker::ADD;
 
@@ -380,14 +396,82 @@ visualization_msgs::MarkerArray Obstacle_Detector::Draw_Trackers(std_msgs::Heade
 
         visual_objects.markers.push_back(marker);
 
-        ID++;
 
+        // add text for speed and position
+        visualization_msgs::Marker marker_text;
+        marker_text.ns = "basic_shapes";
+        marker_text.action = visualization_msgs::Marker::ADD;
+        marker_text.id =object.ID;
+        marker_text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+        marker_text.header = header;
+
+        marker_text.scale.z = 0.2;
+        marker_text.color.b = 0;
+        marker_text.color.g = 0;
+        marker_text.color.r = 255;
+        marker_text.color.a = 1;
+
+        marker_text.text = "    ID: " +std::to_string(object.ID)+"\nx: " + std::to_string(x_pos).substr(0,5) + " y: " + std::to_string(y_pos).substr(0,5) +"\nx_vel: " + std::to_string(x_vel).substr(0,5) + " y_vel:" + std::to_string(y_vel).substr(0,5);
+
+        marker_text.pose.position.x = object.states_now_(0,0);
+        marker_text.pose.position.y = object.states_now_(1,0);
+        marker_text.pose.position.z = 1.0;
+        marker_text.pose.orientation.x = 0.0;
+        marker_text.pose.orientation.y = 0.0;
+        marker_text.pose.orientation.z = 0.0;
+        marker_text.pose.orientation.w = 1.0;
+        marker_text.scale.x = 0.3;
+        marker_text.scale.y = 0.3;
+        marker_text.scale.z = 0.3;
+        marker_text.lifetime = ros::Duration(500);
+        visual_objects.markers.push_back(marker_text);
     }
-
-    
 
     return visual_objects;
     
+}
+
+
+pcl_obstacle_detection::StampedObjectArray Obstacle_Detector::packObjects(std_msgs::Header header){
+    pcl_obstacle_detection::StampedObjectArray publish_objects;
+
+    for (auto object : Objects){
+        pcl_obstacle_detection::StampedObject the_object;
+
+        the_object.pose.position.x = object.states_now_(0,0);
+        the_object.pose.position.y = object.states_now_(1,0);
+
+        the_object.velocity.linear.x = object.states_now_(2,0);
+        the_object.velocity.linear.y = object.states_now_(3,0);
+
+        the_object.ID = object.ID;
+
+        the_object.header = header;
+
+        // TODO: change to actual value
+        the_object.height = 10;
+        the_object.width = 10;
+        the_object.length = 10;
+
+        the_object.covariances = std::vector<float>(object.P_now_.data(), object.P_now_.data() +object.P_now_.size());
+        
+        // std::cout<<"casted:"<<std::endl;
+        // std::for_each(the_object.covariances.begin(),
+        //         the_object.covariances.end(),
+        //         [](const auto &e) {
+        //             std::cout << e << " ";
+        //         });
+
+        // std::cout<<"\nactual:"<<std::endl;
+        // std::cout<<object.P_now_<<std::endl;
+        
+
+        publish_objects.objects.push_back(the_object);
+
+
+    }
+
+    return publish_objects;
 }
 
 
