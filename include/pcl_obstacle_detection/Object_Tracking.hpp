@@ -29,6 +29,8 @@ class ObjectTracker{
 
         int tracking_state; //1: just initilized, 2: updated last frame, 3: no update last frame, 4:lost tracked
 
+        int update_model_; //1:constant velocity model, 2: constant velocity model with shape(width,height)
+
 
         double prev_time_;
         double curr_time;
@@ -50,7 +52,16 @@ class ObjectTracker{
 
         std::vector<double> x_history;
         std::vector<double> y_history;
+
+        double last_measurement_x;
+        double  last_measurement_y;
+        double last_measurement_width;
+        double  last_measurement_length;
         // std::vector<double> z_history;
+
+        
+        // confident level of tracking
+        double confident_level;
 
 
 
@@ -70,7 +81,7 @@ class ObjectTracker{
         Constructor
         */
         ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in);
-        // ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in);
+        ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in,double width, double length);
 
         /*
         Destructor
@@ -94,6 +105,10 @@ class ObjectTracker{
 
         Eigen::MatrixXd measurementPropagationCV(Eigen::MatrixXd sigma_points,double delta_t);
 
+        //constant velocity model with width and length
+        void statePropagateOnlywithShape(double delta_t);
+        Eigen::MatrixXd statePropagationCVwithShape(Eigen::MatrixXd sigma_points,double delta_t);
+        Eigen::MatrixXd measurementPropagationCVwithShape(Eigen::MatrixXd sigma_points,double delta_t);
 };
 
 

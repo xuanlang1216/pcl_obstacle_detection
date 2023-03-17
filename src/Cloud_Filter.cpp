@@ -700,18 +700,17 @@ visualization_msgs::Marker Draw_Bounding_Box(pcl::PointCloud<pcl::PointXYZ>& clu
     marker.pose.orientation.z = 0.0;
     marker.pose.orientation.w = 1.0;
 
-    marker.scale.x = (max[0]-min[0]);
-    marker.scale.y = (max[1]-min[1]);
-    marker.scale.z = (max[2]-min[2]);
+    marker.scale.x = (max[0]-min[0]); //width
+    marker.scale.y = (max[1]-min[1]); //length
+    marker.scale.z = (max[2]-min[2]); //height
 
     marker.color.g = 1.0f;
     marker.color.b = 1.0;
     marker.color.a = 1.0;
 
-    marker.lifetime = ros::Duration(1);
+    marker.lifetime = ros::Duration(5);
 
-    return marker;
-    
+    return marker;   
 }
 
 

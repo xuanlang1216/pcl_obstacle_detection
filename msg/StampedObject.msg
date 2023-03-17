@@ -6,3 +6,6 @@ float32 height
 float32 width
 float32 length
 float32[] covariances  #column based
+geometry_msgs/PoseStamped last_measurment_pose
+float32 last_measurement_length
+float32 last_measurement_width
