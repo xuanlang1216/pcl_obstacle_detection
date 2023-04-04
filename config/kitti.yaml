@@ -23,7 +23,7 @@ GroundRemoval_tHDiff: 1.2
 GroundRemoval_hSensor: 0.4
 
 ComponentClustering_roiM: 100
-ComponentClustering_kernelSize: 3
+ComponentClustering_kernelSize: 8
 
 
 BoxFitting_tHeightMin: 0

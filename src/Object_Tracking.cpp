@@ -63,6 +63,12 @@ ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial
     last_measurement_y = y_initial;
     last_measurement_width =  0.0;
     last_measurement_length =  0.0;  
+    last_measurement_time = time_initial;
+
+    // initialize object color:
+    color_r_ = ((500*ID)%255)/255.0;
+    color_g_ = ((100*ID)%255)/255.0;
+    color_b_ = ((150*ID)%255)/255.0;
 
     calculateWeight();
 }
@@ -132,9 +138,93 @@ ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial
     last_measurement_y = y_initial;
     last_measurement_width =  width;
     last_measurement_length =  length;  
+    last_measurement_time = time_initial;
+
+    // initialize object color:
+    color_r_ = ((500*ID)%255)/255.0;
+    color_g_ = ((100*ID)%255)/255.0;
+    color_b_ = ((150*ID)%255)/255.0;
 
     calculateWeight();
 
+}
+
+ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in,double width, double length,double acc){
+    // std::cout<< "Constructing ObjectTracker with Constant Acceleration Model"<<std::endl;
+
+    update_model_ = 3;
+    tracking_state = 1; // just initialized
+    updated = false;
+    confident_level = 1;
+
+    prev_time_ = time_initial;
+
+    states_prev_ = Eigen::MatrixXd(8,1);
+    states_prev_<< x_initial,y_initial,0.0,0.0,width,length,0.0,0.0;
+
+    states_now_ = Eigen::MatrixXd(8,1); //initial condition
+    states_now_ << x_initial,y_initial,0.0,0.0,width,length,0.0,0.0;
+    
+    // P_prev_ = Eigen::MatrixXd(8,8);
+    // P_prev_<< 1e-6,0,0,0,0,0,
+    //         0,1e-6,0,0,0,0,
+    //         0,0,1e-6,0,0,0,
+    //         0,0,0,1e-6,0,0,
+    //         0,0,0,0,1e-6,0,
+    //         0,0,0,0,0,1e-6;
+    P_prev_ = Eigen::MatrixXd::Identity(8,8) * 1e-6;
+
+    // P_now_ = Eigen::MatrixXd(6,6);
+    // P_now_<< 1e-6,0,0,0,0,0,
+    //         0,1e-6,0,0,0,0,
+    //         0,0,1e-6,0,0,0,
+    //         0,0,0,1e-6,0,0,
+    //         0,0,0,0,1e-6,0,
+    //         0,0,0,0,0,1e-6;
+    P_now_ = Eigen::MatrixXd::Identity(8,8) * 1e-6;
+    
+    // R_ = Eigen::MatrixXd(6,6);
+    // // R_ << 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0; //testing; no variance
+    // R_<< 0.01,0,0,0,0,0,
+    //      0,0.01,0,0,0,0,
+    //      0,0,0.01,0,0,0,
+    //      0,0,0,0.01,0,0,
+    //      0,0,0,0,0.01,0,
+    //      0,0,0,0,0,0.01;
+    R_ = Eigen::MatrixXd::Identity(8,8) * 0.01;
+
+    Q_ = Eigen::MatrixXd(4,4);
+
+    Q_<< 0.01,0,0,0,
+        0,0.01,0,0,
+        0,0,0.01,0,
+        0,0,0,0.01;
+
+    ID = ID_in;
+
+    L = 8;
+    alpha = 1e-3;
+    ki = 0;
+    beta = 2;
+    lamda = pow(alpha,2) * (L+ki) - L;
+
+
+    // update history:
+    x_history.push_back(states_now_(0,0));
+    y_history.push_back(states_now_(1,0));
+
+    last_measurement_x = x_initial;
+    last_measurement_y = y_initial;
+    last_measurement_width =  width;
+    last_measurement_length =  length; 
+    last_measurement_time = time_initial;
+
+    // initialize object color:
+    color_r_ = ((500*ID)%255)/255.0;
+    color_g_ = ((100*ID)%255)/255.0;
+    color_b_ = ((150*ID)%255)/255.0;
+
+    calculateWeight();
 }
 
 Eigen::MatrixXd ObjectTracker::sigmaPointSampling(Eigen::MatrixXd mean, Eigen::MatrixXd cov){
@@ -188,6 +278,9 @@ void ObjectTracker::statePrediction(double delta_t){
     {
         sigma_points_mean_ = statePropagationCVwithShape(sigma_points_pre_,delta_t);
     }
+    else if (update_model_ == 3){
+        sigma_points_mean_ = statePropagationCA(sigma_points_pre_,delta_t);
+    }
     else{
         sigma_points_mean_ = sigma_points_pre_;
         std::cout<< "Wrong update model!!!!!!!"<<std::endl;
@@ -237,6 +330,9 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     }
     else if (update_model_ == 2){
         measurement_pred_ = measurementPropagationCVwithShape(sigma_points_new_,delta_t);
+    }
+    else if (update_model_ == 3){
+        measurement_pred_ = measurementPropagationCA(sigma_points_new_,delta_t);
     }
     else{
         std::cout<<"WRONG UPDATE MODEL!!!!"<<std::endl;
@@ -361,7 +457,8 @@ void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
         last_measurement_x = measurement(0,0);
         last_measurement_y =measurement(1,0);
         last_measurement_width =  measurement(3,0);
-        last_measurement_length =  measurement(4,0);       
+        last_measurement_length =  measurement(4,0); 
+        last_measurement_time = time_now;  
 
         // z_history.push_back(states_now_(2,0));
     }
@@ -372,8 +469,9 @@ void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
 }
 
 
-void ObjectTracker::statePropagateOnly(double delta_t){
+void ObjectTracker::statePropagateOnly(double time_now){
     // using Contant Velocity model
+    double delta_t = time_now - prev_time_;
     if ((delta_t < 10)){
         states_now_(0,0) = states_now_(0,0) + states_now_(2,0) * delta_t;
         states_now_(1,0) = states_now_(1,0) + states_now_(3,0) * delta_t;
@@ -388,6 +486,7 @@ void ObjectTracker::statePropagateOnly(double delta_t){
         // z_history.push_back(states_now_(2,0));
 
         tracking_state = 3;
+        prev_time_ = time_now;
     }
     confident_level = confident_level * (1.0 - 0.3);
 }
@@ -420,8 +519,9 @@ Eigen::MatrixXd ObjectTracker::measurementPropagationCV(Eigen::MatrixXd sigma_po
     return sigma_propagated;
 }
 
-void ObjectTracker::statePropagateOnlywithShape(double delta_t){
+void ObjectTracker::statePropagateOnlywithShape(double time_now){
     // using Contant Velocity model with shape
+    double delta_t = time_now - prev_time_;
     if ((delta_t < 10)){
         states_now_(0,0) = states_now_(0,0) + states_now_(2,0) * delta_t;
         states_now_(1,0) = states_now_(1,0) + states_now_(3,0) * delta_t;
@@ -438,6 +538,7 @@ void ObjectTracker::statePropagateOnlywithShape(double delta_t){
         // z_history.push_back(states_now_(2,0));
 
         tracking_state = 3;
+        prev_time_ = time_now;
     }
     confident_level = confident_level * (1.0 - 0.3);
 }
@@ -473,4 +574,60 @@ Eigen::MatrixXd ObjectTracker::measurementPropagationCVwithShape(Eigen::MatrixXd
     // std::cout<<"Sigma_propagated: "<<sigma_propagated<<std::endl;
     
     return sigma_propagated;
+}
+
+
+Eigen::MatrixXd ObjectTracker::statePropagationCA(Eigen::MatrixXd sigma_points,double delta_t){
+        // Applied a Constant Velocity State Propagation
+
+    Eigen::MatrixXd sigma_propagated(Eigen::MatrixXd(sigma_points.rows(),sigma_points.cols()));
+    //Input should be (4*N) dimension
+    for (int i = 0; i< sigma_points.cols();i++){
+        sigma_propagated(0,i) = sigma_points(0,i) + sigma_points(2,i) * delta_t + 0.5 * delta_t * sigma_points(6,i);//update x(t) = x(t-1) + delta_t * x_vel(t-1) + 0.5 * delta_t^2 * acc_x(t-1)
+        sigma_propagated(1,i) = sigma_points(1,i) + sigma_points(3,i) * delta_t + 0.5 * delta_t * sigma_points(7,i);//update y(t) = y(t-1) + delta_t * y_vel(t-1) + 0.5 * delta_t^2 * acc_y(t-1)
+        sigma_propagated(2,i) = sigma_points(2,i) + delta_t * sigma_points(6,i); //update x_vel(t) = x_vel(t-1) + delta_t * acc_x(t-1)
+        sigma_propagated(3,i) = sigma_points(3,i) + delta_t * sigma_points(7,i); //update y_vel(t) = y_vel(t-1) + delta_t * acc_y(t-1)
+        sigma_propagated(4,i) = sigma_points(4,i); //update width(t) = width(t-1)
+        sigma_propagated(5,i) = sigma_points(5,i); //update height(t) = height(t-1)
+        sigma_propagated(6,i) = sigma_points(4,i); //update acc_x(t) = acc_x(t-1)
+        sigma_propagated(7,i) = sigma_points(5,i); //update acc_y(t) = acc_y(t-1)
+    }
+
+    return sigma_propagated;
+}
+
+
+Eigen::MatrixXd ObjectTracker::measurementPropagationCA(Eigen::MatrixXd sigma_points,double delta_t){
+    Eigen::MatrixXd sigma_propagated(Eigen::MatrixXd(4,sigma_points.cols()));
+
+    for (int i=0;i<sigma_points.cols();i++){
+        sigma_propagated(0,i) = sigma_points(0,i); //x_measurement
+        sigma_propagated(1,i) = sigma_points(1,i); //y_measurement
+        sigma_propagated(2,i) = sigma_points(4,i); //width measurement
+        sigma_propagated(3,i) = sigma_points(5,i); //length measurement
+    }
+    // std::cout<<"Sigma_propagated: "<<sigma_propagated<<std::endl;
+    
+    return sigma_propagated;
+}
+
+void ObjectTracker::statePropagateOnlyCA(double time_now){
+    double delta_t = time_now - prev_time_;
+    if ((delta_t < 10)){
+        states_now_(0,0) = states_now_(0,0) + states_now_(2,0) * delta_t + 0.5 * delta_t  * states_now_(6,0);
+        states_now_(1,0) = states_now_(1,0) + states_now_(3,0) * delta_t + 0.5 * delta_t  * states_now_(7,0);
+        states_now_(2,0) = states_now_(2,0) + delta_t  * states_now_(6,0);
+        states_now_(3,0) = states_now_(3,0) + delta_t  * states_now_(7,0);
+        
+        states_prev_ = states_now_;
+
+        // update history:
+        x_history.push_back(states_now_(0,0));
+        y_history.push_back(states_now_(1,0));
+        // z_history.push_back(states_now_(2,0));
+
+        tracking_state = 3;
+        prev_time_ = time_now;
+    }
+    confident_level = confident_level * (1.0 - 0.3);
 }

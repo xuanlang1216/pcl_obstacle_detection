@@ -14,3 +14,25 @@ EuclideanClusterExtraction_DistanceThreshold : 0.02
 EuclideanClusterExtraction_ClusterTolerance : 0.1
 EuclideanClusterExtraction_MinClusterSize : 100
 EuclideanClusterExtraction_MaxClusterSize : 25000
+
+GroundRemoval_rMin: 0.1
+GroundRemoval_rMax: 120
+GroundRemoval_tHmin: -5.4
+GroundRemoval_tHmax: 5.4
+GroundRemoval_tHDiff: 0.3
+GroundRemoval_hSensor: 1.5
+
+ComponentClustering_roiM: 30
+ComponentClustering_kernelSize: 10
+
+
+BoxFitting_tHeightMin: 0.5
+BoxFitting_tHeightMax: 5
+BoxFitting_tWidthMin: 0.2
+BoxFitting_tWidthMax: 10
+BoxFitting_tLenMin: 0.5
+BoxFitting_tAreaMax: 20
+BoxFitting_tRatioMin: 1.3
+BoxFitting_tRatioMax: 5
+BoxFitting_minLenRatio: 1.5
+BoxFitting_tPtPerM3: 10

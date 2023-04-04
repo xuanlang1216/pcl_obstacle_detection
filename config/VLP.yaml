@@ -4,6 +4,7 @@ PUBLISH_CLUSTER : "/pcl/cluster"
 PUBLISH_BOX : "/pcl/bounding_box"
 PUBLISH_TRACKER : "/pcl/tracker"
 PUBLISH_OBJECT : "/pcl/object"
+
 VoxelGridLeafSize : 0.5
 DifferenceOfNormals_Scale1 : 1
 DifferenceOfNormals_Scale1 : 3

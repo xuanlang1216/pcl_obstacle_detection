@@ -363,6 +363,9 @@ void componentClustering(pcl::PointCloud<pcl::PointXYZ>::Ptr elevatedCloud,
 void makeClusteredCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& elevatedCloud,
                         std::array<std::array<int, numGrid>, numGrid> cartesianData,
                         pcl::PointCloud<pcl::PointXYZRGB>::Ptr& clusterCloud){
+
+    // cartesian data:: occupancy grid data
+
     for(int i = 0; i < elevatedCloud->size(); i++){
         float x = elevatedCloud->points[i].x;
         float y = elevatedCloud->points[i].y;

@@ -54,9 +54,10 @@ class ObjectTracker{
         std::vector<double> y_history;
 
         double last_measurement_x;
-        double  last_measurement_y;
+        double last_measurement_y;
         double last_measurement_width;
-        double  last_measurement_length;
+        double last_measurement_length;
+        double last_measurement_time;
         // std::vector<double> z_history;
 
         
@@ -76,12 +77,18 @@ class ObjectTracker{
         bool updated; // used to store if the object is update last frame
 
         int ID; // ID of the the Object for tracking
+        
+        // generate random color for the object
+        double color_r_ ;
+        double color_g_;
+        double color_b_;
 
         /*
         Constructor
         */
         ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in);
         ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in,double width, double length);
+        ObjectTracker(float x_initial,float y_initial,double time_initial,int ID_in,double width, double length,double acc);
 
         /*
         Destructor
@@ -98,17 +105,21 @@ class ObjectTracker{
 
         void UKFUpdate(Eigen::MatrixXd measurement,double time_now);
 
-        void statePropagateOnly(double delta_t);
-
-
+        //constant velocity model
+        void statePropagateOnly(double time_now);
         Eigen::MatrixXd statePropagationCV(Eigen::MatrixXd sigma_points,double delta_t);
-
         Eigen::MatrixXd measurementPropagationCV(Eigen::MatrixXd sigma_points,double delta_t);
 
         //constant velocity model with width and length
-        void statePropagateOnlywithShape(double delta_t);
+        void statePropagateOnlywithShape(double time_now);
         Eigen::MatrixXd statePropagationCVwithShape(Eigen::MatrixXd sigma_points,double delta_t);
         Eigen::MatrixXd measurementPropagationCVwithShape(Eigen::MatrixXd sigma_points,double delta_t);
+        
+        // Constant accerlaration model
+        Eigen::MatrixXd statePropagationCA(Eigen::MatrixXd sigma_points,double delta_t);
+        Eigen::MatrixXd measurementPropagationCA(Eigen::MatrixXd sigma_points,double delta_t);
+        void statePropagateOnlyCA(double time_now);
+
 };
 
 
