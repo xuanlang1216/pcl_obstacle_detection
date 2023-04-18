@@ -14,6 +14,7 @@ ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial
     tracking_state = 1; // just initialized
     updated = false;
     confident_level = 1.0;
+    updated_count=1;
 
     prev_time_ = time_initial;
 
@@ -79,7 +80,8 @@ ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial
     update_model_ = 2;
     tracking_state = 1; // just initialized
     updated = false;
-    confident_level = 1;
+    confident_level = 1.0;
+    updated_count=1;
 
     prev_time_ = time_initial;
 
@@ -155,10 +157,12 @@ ObjectTracker::ObjectTracker(float x_initial,float y_initial,double time_initial
     update_model_ = 3;
     tracking_state = 1; // just initialized
     updated = false;
-    confident_level = 1;
+    confident_level = 1.0;
+    updated_count=1;
 
     prev_time_ = time_initial;
 
+    // x,y,x_vel,y_vel,width,length,x_acc,y_acc
     states_prev_ = Eigen::MatrixXd(8,1);
     states_prev_<< x_initial,y_initial,0.0,0.0,width,length,0.0,0.0;
 
@@ -350,7 +354,6 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
         // std::cout<<measurement_mean_<<std::endl;
     }
 
-
     //Innovation Covariances & cross_covariance
     Eigen::MatrixXd S = Eigen::MatrixXd::Zero(Q_.rows(),Q_.cols());
     Eigen::MatrixXd C_cov = Eigen::MatrixXd::Zero(states_mean_.rows(),measurement_.rows());
@@ -407,11 +410,6 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     // std::cout<< "C_cov: "<< C_cov<<std::endl;
     // std::cout<<"S_inverse"<<S.inverse()<<std::endl;
 
-    // std::cout<< "K: "<< K<<std::endl;
-    // std::cout<<"measurement_"<< measurement_ <<std::endl;
-    // std::cout<<"measurement_mean"<< measurement_mean_ <<std::endl;
-    // std::cout<<"Measurement DIfference"<<(measurement_ - measurement_mean_)<<std::endl;
-    // std::cout<< "state Gain: "<<K * (measurement_ - measurement_mean_)<<std::endl;
 
     //Find Corrected Mean
     states_now_ = states_mean_ + K * (measurement_- measurement_mean_);
@@ -419,9 +417,18 @@ void ObjectTracker::stateUpdate(Eigen::MatrixXd measurement,double delta_t){
     //Find Corrected Covariances
     P_now_ = P_mean_ - K * S * K.transpose();
 
+    // if (ID = 2){
+    //     std::cout<< "states_mean_ =" << states_mean_<< std::endl;
+    //     std::cout<< "states_now =" << states_now_<< std::endl;
 
-    // std::cout<< "states_now =" << states_now_<< std::endl;
-    // std::cout<< "P_now_ =" << P_now_<< std::endl;
+    //     std::cout<< "K: "<< K<<std::endl;
+    //     std::cout<<"measurement_"<< measurement_ <<std::endl;
+    //     std::cout<<"measurement_pred_"<< measurement_pred_ <<std::endl;
+    //     std::cout<<"measurement_mean"<< measurement_mean_ <<std::endl;
+    //     std::cout<<"Measurement DIfference"<<(measurement_ - measurement_mean_)<<std::endl;
+    //     std::cout<< "state Gain: "<<K * (measurement_ - measurement_mean_)<<std::endl;
+    //     // std::cout<< "P_now_ =" << P_now_<< std::endl;
+    // }
 }
 
 
@@ -444,6 +451,7 @@ void ObjectTracker::UKFUpdate(Eigen::MatrixXd measurement,double time_now){
         updated = true;
         prev_time_ = time_now;
         confident_level = 1.0;
+        updated_count += 1; 
         // std::cout<<"position_prev_ after: ("<< states_prev_(0,0)<<", "<<states_prev_(1,0)<< ")"<<std::endl;
         
         // std::cout<<"new prev_time_ - time_now:"<< prev_time_ - time_now <<std::endl;
@@ -488,7 +496,7 @@ void ObjectTracker::statePropagateOnly(double time_now){
         tracking_state = 3;
         prev_time_ = time_now;
     }
-    confident_level = confident_level * (1.0 - 0.3);
+    confident_level = confident_level * (1.0 - 0.1);
 }
 
 Eigen::MatrixXd ObjectTracker::statePropagationCV(Eigen::MatrixXd sigma_points,double delta_t){
@@ -540,7 +548,7 @@ void ObjectTracker::statePropagateOnlywithShape(double time_now){
         tracking_state = 3;
         prev_time_ = time_now;
     }
-    confident_level = confident_level * (1.0 - 0.3);
+    confident_level = confident_level * (1.0 - 0.1);
 }
 
 Eigen::MatrixXd ObjectTracker::statePropagationCVwithShape(Eigen::MatrixXd sigma_points,double delta_t){
@@ -576,6 +584,10 @@ Eigen::MatrixXd ObjectTracker::measurementPropagationCVwithShape(Eigen::MatrixXd
     return sigma_propagated;
 }
 
+float clip(float n, float lower, float upper) {
+    // helper function to clip a number
+  return std::max(lower, std::min(n, upper));
+}
 
 Eigen::MatrixXd ObjectTracker::statePropagationCA(Eigen::MatrixXd sigma_points,double delta_t){
         // Applied a Constant Velocity State Propagation
@@ -583,14 +595,14 @@ Eigen::MatrixXd ObjectTracker::statePropagationCA(Eigen::MatrixXd sigma_points,d
     Eigen::MatrixXd sigma_propagated(Eigen::MatrixXd(sigma_points.rows(),sigma_points.cols()));
     //Input should be (4*N) dimension
     for (int i = 0; i< sigma_points.cols();i++){
-        sigma_propagated(0,i) = sigma_points(0,i) + sigma_points(2,i) * delta_t + 0.5 * delta_t * sigma_points(6,i);//update x(t) = x(t-1) + delta_t * x_vel(t-1) + 0.5 * delta_t^2 * acc_x(t-1)
-        sigma_propagated(1,i) = sigma_points(1,i) + sigma_points(3,i) * delta_t + 0.5 * delta_t * sigma_points(7,i);//update y(t) = y(t-1) + delta_t * y_vel(t-1) + 0.5 * delta_t^2 * acc_y(t-1)
+        sigma_propagated(0,i) = sigma_points(0,i) + sigma_points(2,i) * delta_t + 0.5 * delta_t * delta_t * sigma_points(6,i);//update x(t) = x(t-1) + delta_t * x_vel(t-1) + 0.5 * delta_t^2 * acc_x(t-1)
+        sigma_propagated(1,i) = sigma_points(1,i) + sigma_points(3,i) * delta_t + 0.5 * delta_t * delta_t * sigma_points(7,i);//update y(t) = y(t-1) + delta_t * y_vel(t-1) + 0.5 * delta_t^2 * acc_y(t-1)
         sigma_propagated(2,i) = sigma_points(2,i) + delta_t * sigma_points(6,i); //update x_vel(t) = x_vel(t-1) + delta_t * acc_x(t-1)
         sigma_propagated(3,i) = sigma_points(3,i) + delta_t * sigma_points(7,i); //update y_vel(t) = y_vel(t-1) + delta_t * acc_y(t-1)
         sigma_propagated(4,i) = sigma_points(4,i); //update width(t) = width(t-1)
         sigma_propagated(5,i) = sigma_points(5,i); //update height(t) = height(t-1)
-        sigma_propagated(6,i) = sigma_points(4,i); //update acc_x(t) = acc_x(t-1)
-        sigma_propagated(7,i) = sigma_points(5,i); //update acc_y(t) = acc_y(t-1)
+        sigma_propagated(6,i) = sigma_points(6,i); //update acc_x(t) = acc_x(t-1)
+        sigma_propagated(7,i) = sigma_points(7,i);  //update acc_y(t) = acc_y(t-1)
     }
 
     return sigma_propagated;
@@ -629,5 +641,5 @@ void ObjectTracker::statePropagateOnlyCA(double time_now){
         tracking_state = 3;
         prev_time_ = time_now;
     }
-    confident_level = confident_level * (1.0 - 0.3);
+    confident_level = confident_level * (1.0 - 0.1);
 }

@@ -1,4 +1,4 @@
-POINTCLOUD_TOPIC : "/velodyne_points"
+POINTCLOUD_TOPIC : "/ns1/velodyne_points"
 PUBLISH_GROUND : "/pcl/Ground"
 PUBLISH_CLUSTER : "/pcl/cluster"
 PUBLISH_BOX : "/pcl/bounding_box"

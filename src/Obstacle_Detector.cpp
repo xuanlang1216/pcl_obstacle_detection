@@ -224,21 +224,26 @@ void Obstacle_Detector::processPointCloud(const sensor_msgs::PointCloud2::ConstP
     // ROS_INFO("Finish Pointcloud Processing");
 }
 
-std::pair<double,int> calculateCost(std::vector<ObjectTracker> objects_in,double x,double y,double width,double length){
+std::pair<double,int> calculateCost(std::vector<ObjectTracker> objects_in,double x,double y,double width,double length,double time_now){
     //weights:
-    double w_hwl = 0.2;
-    double w_dis = 0.8;
-    // double w_motion = 0.3;
+    double w_hwl = 0.5;
+    double w_dis = 0.5;
+    double w_motion = 0.0;
+    double w_velang = 0.0;
+
     int object_size = objects_in.size();
 
     std::vector<double> costs;
     
     std::vector<double> cost_hwl;
     std::vector<double> cost_dis;
+    std::vector<double> cost_motion;
+    std::vector<double> cost_velang; // cost based on angle between to velocity vector
     
     double cost_hwl_total = 0.0;
     double cost_dis_total = 0.0;
-    double cost_geo_total = 0.0;
+    double cost_motion_total =0.0;
+    double cost_velang_total = 0.0;
     
     for (auto object:objects_in){
         cost_hwl.push_back(abs(object.states_now_(4,0) - width) / (object.states_now_(4,0) + width) + abs(object.states_now_(5,0) - length) / (object.states_now_(5,0) + length));
@@ -246,6 +251,30 @@ std::pair<double,int> calculateCost(std::vector<ObjectTracker> objects_in,double
         
         cost_dis.push_back((pow(object.states_now_(0,0)-x,2) + pow(object.states_now_(1,0)-y,2)));
         cost_dis_total += cost_dis.back();
+        
+        double time_diff = time_now - object.prev_time_;
+        double cost_motion_x = object.states_now_(0,0) + object.states_now_(2,0) *time_diff - x; // CV predicted - Measured
+        double cost_motion_y = object.states_now_(1,0) + object.states_now_(3,0) *time_diff - y;
+        cost_motion.push_back(sqrt(pow(cost_motion_x,2)+pow(cost_motion_y,2)));
+        cost_motion_total += cost_motion.back();
+
+        double vel_x_pred =  object.states_now_(2,0);
+        double vel_y_pred =  object.states_now_(3,0);
+        double vel_x_meas = (x - object.states_now_(0,0));
+        double vel_y_meas = (y - object.states_now_(1,0));
+
+        double vel_dot = (vel_x_pred * vel_x_meas) + (vel_y_pred * vel_y_meas);
+        double vel_mag = sqrt(vel_x_pred*vel_x_pred+vel_y_pred*vel_y_pred) * sqrt(vel_x_meas*vel_x_meas + vel_y_meas * vel_y_meas );
+        if (vel_mag<0.001){
+            cost_velang.push_back(0);
+        }
+        else{
+            cost_velang.push_back(1-(vel_dot/vel_mag));
+        }
+        
+        // ROS_INFO("vel_x_pred: %f , vel_y_pred: %f, vel_x_meas: %f, vel_y_meas: %f",vel_x_pred,vel_y_pred,vel_x_meas,vel_y_meas);
+        // ROS_INFO("vel_dot: %f , vel_mag: %f, vel_cost: %f",vel_dot,vel_mag,vel_dot/vel_mag);
+        cost_velang_total += cost_velang.back();
 
         costs.push_back(0.0);
     }
@@ -257,14 +286,39 @@ std::pair<double,int> calculateCost(std::vector<ObjectTracker> objects_in,double
 
     cost_dis_total = 1.0/cost_dis_total;
 
+    cost_motion_total = 1.0/cost_motion_total;
+    
+    if (cost_velang_total < 0.01){
+        cost_velang_total = 0.01;
+    }
+    else{
+        cost_velang_total = 1.0/cost_velang_total;
+    }
+
     // ROS_INFO("cost_hwl_total after: %f",cost_hwl_total);
     // ROS_INFO("cost_dis_total after: %f",cost_dis_total);
+
+    double hwl_min = 0.0;
+    double hwl_max = 2.0;
+    double dis_min = 0.0;
+    double dis_max = 10.0;
+    double motion_min = 0.0;
+    double motion_max = 10.0;
+    double velang_min = 0.0;
+    double velang_max = 1.0;
     
     for (int i = 0;i<cost_hwl.size();i++){
-        cost_hwl[i] = cost_hwl[i] * cost_hwl_total * object_size;
-        cost_dis[i] = cost_dis[i] * cost_dis_total * object_size;
 
-        costs[i] = objects_in[i].confident_level * (w_hwl*cost_hwl[i] + w_dis*cost_dis[i]);
+        // cost_hwl[i] = cost_hwl[i] * cost_hwl_total * object_size;
+        // cost_dis[i] = cost_dis[i] * cost_dis_total * object_size;
+        cost_hwl[i] = (cost_hwl[i] - hwl_min) / (hwl_max-hwl_min) ;
+        cost_dis[i] = (cost_dis[i] - dis_min) / (dis_max- dis_min);
+
+        cost_motion[i] = (cost_motion[i] - motion_min)/(motion_max-motion_min);
+        cost_velang[i] = (cost_velang[i] - velang_min)/(velang_max-velang_min);
+        
+
+        costs[i] = objects_in[i].confident_level * (w_hwl*cost_hwl[i] + w_dis*cost_dis[i] + w_motion * cost_motion[i] + w_velang * cost_velang[i]);
     }
     
     // check if the sum of cost  == 1;
@@ -282,12 +336,17 @@ std::pair<double,int> calculateCost(std::vector<ObjectTracker> objects_in,double
     
 
     double max_cost = *std::max_element(costs.begin(),costs.end());
-    ROS_INFO("max cost %f",max_cost);
+    // ROS_INFO("max cost %f",max_cost);
 
     auto min_iter = std::min_element(costs.begin(),costs.end());
     double min_cost = *min_iter;
     int min_ID = std::distance(costs.begin(), min_iter); 
-    // ROS_INFO("min_cost %f",min_cost);
+
+    // ROS_INFO("min_cost %f,%f, min_ID: %d,updated_count: %i",min_cost,costs[min_ID],min_ID,objects_in[min_ID].updated_count);
+    // ROS_INFO("measurement: x: %f, y: %f, w: %f ,l: %f",x,y,width,length);
+    // ROS_INFO("min_cost_object: x: %f, y: %f, x_vel: %f, y_vel: %f, width: %f, length: %f",objects_in[min_ID].states_now_(0,0),objects_in[min_ID].states_now_(1,0),objects_in[min_ID].states_now_(2,0),objects_in[min_ID].states_now_(3,0),objects_in[min_ID].states_now_(4,0),objects_in[min_ID].states_now_(5,0));
+    // ROS_INFO("min_cost_hwl: %f,dis: %f, motion: %f, velang: %f, confident level: %f",cost_hwl[min_ID],cost_dis[min_ID],cost_motion[min_ID],cost_velang[min_ID],objects_in[min_ID].confident_level);
+    
     // //Geometry cost:
     // double cost_hwl = abs(object.states_now_(4,0) - width) / (object.states_now_(4,0) + width) + abs(object.states_now_(5,0) - length) / (object.states_now_(5,0) + length);
     // double cost_dis = sqrt(pow(object.states_now_(0,0)-x,2) + pow(object.states_now_(1,0)-y,2));
@@ -318,24 +377,24 @@ void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,st
 
         if (Objects.size()!=0){
 
-            std::pair<double,int>find_cost = calculateCost(Objects,x,y,width,length);
+            std::pair<double,int>find_cost = calculateCost(Objects,x,y,width,length,time_now);
             double min_cost = find_cost.first;
             int min_cost_id = find_cost.second;
             
 
-            for (int i =0; i<Objects.size();i++){
-                double dist = sqrt(pow(Objects[i].states_now_(0,0)-x,2) + pow(Objects[i].states_now_(1,0)-y,2));
-                if (dist < min_dist){
-                    min_dist = dist;
-                    min_dist_ID = i;
-                }
-            }
+            // for (int i =0; i<Objects.size();i++){
+            //     double dist = sqrt(pow(Objects[i].states_now_(0,0)-x,2) + pow(Objects[i].states_now_(1,0)-y,2));
+            //     if (dist < min_dist){
+            //         min_dist = dist;
+            //         min_dist_ID = i;
+            //     }
+            // }
             // ROS_INFO("min cost: %f , ID: %i",min_cost,min_cost_id);
             // ROS_INFO("min_dist_ID: %i",min_dist_ID);
             
             // std::cout<< "Min_dist: "<< min_dist << ", ID: "<< min_dist_ID<<std::endl;
             // if (min_dist < 2 && min_dist_ID >= 0){ 
-            if (min_cost < 0.2){
+            if (min_cost < 1){
 
                 //CV only
                 // Eigen::MatrixXd measure(2,1);
@@ -350,12 +409,13 @@ void Obstacle_Detector::updateTrackers(std::vector<Eigen::Vector4f> centroids,st
 
 
                 // ROS_INFO("object %i before [%f,%f,%f,%f,%f,%f]",Objects[min_dist_ID].ID,Objects[min_dist_ID].states_now_(0,0),Objects[min_dist_ID].states_now_(1,0),Objects[min_dist_ID].states_now_(2,0),Objects[min_dist_ID].states_now_(3,0),Objects[min_dist_ID].states_now_(4,0),Objects[min_dist_ID].states_now_(5,0));
-                Objects[min_dist_ID].UKFUpdate(measure,time_now);
+                Objects[min_cost_id].UKFUpdate(measure,time_now);
                 // ROS_INFO("object %i after [%f,%f,%f,%f,%f,%f]",Objects[min_dist_ID].ID,Objects[min_dist_ID].states_now_(0,0),Objects[min_dist_ID].states_now_(1,0),Objects[min_dist_ID].states_now_(2,0),Objects[min_dist_ID].states_now_(3,0),Objects[min_dist_ID].states_now_(4,0),Objects[min_dist_ID].states_now_(5,0));
             }
             // else if (min_dist >= 3 /*&& Objects.size() < 10*/){ //added object size constraints TODO: need to remove this later
             else{
                 // std::cout<<"Adding new traker Because MinDist = "<<min_dist <<std::endl;
+                ROS_INFO("Addding NEW OBJECT, Min_cost: %f",min_cost);
                 Objects.push_back(ObjectTracker(x,y,time_now,ID_count,width,length,0.0)); //CA model
                 ID_count += 1;
             }
@@ -406,8 +466,9 @@ visualization_msgs::Marker creatVelocityMarker (int ID,std_msgs::Header header,f
     marker.pose.orientation.w = 1.0;
 
 
-    double arrow_length = 5.0;
+    
     double distance = sqrt(pow(x_vel,2)+pow(y_vel,2));
+    double arrow_length = distance/5.0;
     double x_len = arrow_length * x_vel / distance;
     double y_len = arrow_length * y_vel / distance;
     
@@ -583,39 +644,50 @@ pcl_obstacle_detection::StampedObjectArray Obstacle_Detector::packObjects(std_ms
     // ROS_INFO("Packing Trackers");
     pcl_obstacle_detection::StampedObjectArray publish_objects;
 
-    for (auto object : Objects){
+    int max_ID = Objects.back().ID;
+    int iter_ID = 0;
+
+    for (int i =0;i<max_ID;i++){
         pcl_obstacle_detection::StampedObject the_object;
-
-        the_object.pose.position.x = object.states_now_(0,0);
-        the_object.pose.position.y = object.states_now_(1,0);
-
-        the_object.velocity.linear.x = object.states_now_(2,0);
-        the_object.velocity.linear.y = object.states_now_(3,0);
-
-        the_object.ID = object.ID;
-
-        the_object.header = header;
-
-        // TODO: change to actual value
-        the_object.height = 10;
-        the_object.width = 10;
-        the_object.length = 10;
-
-        the_object.covariances = std::vector<float>(object.P_now_.data(), object.P_now_.data() +object.P_now_.size());
         
+        if (i == Objects[iter_ID].ID){
+            the_object.pose.position.x = Objects[iter_ID].states_now_(0,0);
+            the_object.pose.position.y = Objects[iter_ID].states_now_(1,0);
 
-        
-        the_object.last_measurment_pose.pose.position.x = object.last_measurement_x;
-        the_object.last_measurment_pose.pose.position.y = object.last_measurement_y;
-
-        the_object.last_measurement_length = object.last_measurement_length;
-        the_object.last_measurement_width = object.last_measurement_width;
+            the_object.velocity.linear.x = Objects[iter_ID].states_now_(2,0);
+            the_object.velocity.linear.y = Objects[iter_ID].states_now_(3,0);
 
 
+            the_object.acceleration.linear.x = Objects[iter_ID].states_now_(6,0);
+            the_object.acceleration.linear.y = Objects[iter_ID].states_now_(7,0);
+
+            the_object.ID = Objects[iter_ID].ID;
+
+            the_object.header = header;
+
+            // TODO: change to actual value
+            the_object.height = 10;
+            the_object.width = Objects[iter_ID].states_now_(4,0);
+            the_object.length = Objects[iter_ID].states_now_(5,0);
+
+            the_object.covariances = std::vector<float>(Objects[iter_ID].P_now_.data(), Objects[iter_ID].P_now_.data() +Objects[iter_ID].P_now_.size());
+            
+
+            
+            the_object.last_measurment_pose.pose.position.x = Objects[iter_ID].last_measurement_x;
+            the_object.last_measurment_pose.pose.position.y = Objects[iter_ID].last_measurement_y;
+
+            the_object.last_measurement_length = Objects[iter_ID].last_measurement_length;
+            the_object.last_measurement_width = Objects[iter_ID].last_measurement_width;
+
+
+            
+            iter_ID += 1;
+        }
         publish_objects.objects.push_back(the_object);
 
-
     }
+
     // ROS_INFO("End Packing Trackers");
     return publish_objects;
 }

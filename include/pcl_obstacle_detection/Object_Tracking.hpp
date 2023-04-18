@@ -63,6 +63,7 @@ class ObjectTracker{
         
         // confident level of tracking
         double confident_level;
+        int updated_count;
 
 
 

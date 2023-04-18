@@ -491,12 +491,15 @@ bool ruleBasedFilter(std::vector<cv::Point2f> pcPoints, float maxZ, int numPoint
                     if(numPoints > mass*tPtPerM3){
                         if(length > minLenRatio){
                             if(ratio > tRatioMin && ratio < tRatioMax){
-                                isPromising = true;
+                                isPromising = false; // dont check ratio
+                                std::cout<<"length: "<<length<<" tLenMin:" << tLenMin <<" tLenMax:" << tLenMax <<" minLenRatio: "<< minLenRatio<<std::endl;
+                                std::cout<<"width: "<<width<<" length: "<<length<<" Height: "<<height<<std::endl ;
                                 return isPromising;
                             }
                         }
                         else{
                             isPromising = true;
+                            // std::cout<<"width: "<<width<<" length: "<<length<<" Height: "<<height<<std::endl ;
                             return isPromising;
                         }
                     }
@@ -504,10 +507,8 @@ bool ruleBasedFilter(std::vector<cv::Point2f> pcPoints, float maxZ, int numPoint
             }
         }
     }
-    else 
-    {
-        return isPromising;
-    }
+
+    return isPromising;
 }
 
 
@@ -515,6 +516,10 @@ bool ruleBasedFilter(std::vector<cv::Point2f> pcPoints, float maxZ, int numPoint
 void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints,
                     std::vector<pcl::PointCloud<pcl::PointXYZ>>& bbPoints){
     
+    int count_Lshape = 0;
+    int count_MAR = 0;
+    std::vector<std::list<double>> detected_cluster;
+
     for (int iCluster = 0; iCluster < clusteredPoints.size(); iCluster++){
         // std::cout<< "processing cluster "<<iCluster<<std::endl;
         cv::Mat m (picScale*roiM, picScale*roiM, CV_8UC1, cv::Scalar(0));
@@ -623,6 +628,7 @@ void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints
 
             bool isPromising = ruleBasedFilter(pcPoints, maxZ, numPoints);
             if(!isPromising) continue;
+            count_Lshape = count_Lshape+1;
         }
         else{
             //MAR fitting
@@ -633,6 +639,7 @@ void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints
             // rule based filter
             bool isPromising = ruleBasedFilter(pcPoints, maxZ, numPoints);
             if(!isPromising) continue;
+            count_MAR = count_MAR+1;
         }
 
         // make pcl cloud for 3d bounding box
@@ -654,8 +661,28 @@ void getBoundingBox(std::vector<pcl::PointCloud<pcl::PointXYZ>>  clusteredPoints
             }
         }
         bbPoints.push_back(oneBbox);
+
+
+        // Eigen::Vector4f centroid;
+        // Eigen::Vector4f min;
+        // Eigen::Vector4f max;
+    
+        // // std::cout<<"bbpoint0:"<<cluster_cloud.points[0].x<<" "<<cluster_cloud.points[0].y<<" "<<cluster_cloud.points[1].x<<" "<<cluster_cloud.points[1].y<<std::endl;
+        // // std::cout<<"bbpoint1:"<<cluster_cloud.points[2].x<<" "<<cluster_cloud.points[2].y<<" "<<cluster_cloud.points[3].x<<" "<<cluster_cloud.points[3].y<<std::endl;
+        // pcl::compute3DCentroid(oneBbox,centroid);
+        // pcl::getMinMax3D(oneBbox,min,max);
+
+        // double x_shape = (max[0]-min[0]); //width
+        // double y_shape= (max[1]-min[1]); //length
+        // double z_shape = (max[2]-min[2]); //height
+
+        // std::cout<<"shape: x: "<<x_shape<< " y:"<< y_shape << " z:" <<z_shape<<std::endl;
+
+
 //        clustered2D[iCluster] = m;
     }
+    // std::cout<<"LshapeObject :"<<count_Lshape<<" MAR Object: "<<count_MAR<<std::endl;
+
 
 }
 
@@ -680,9 +707,12 @@ visualization_msgs::Marker Draw_Bounding_Box(pcl::PointCloud<pcl::PointXYZ>& clu
     Eigen::Vector4f centroid;
     Eigen::Vector4f min;
     Eigen::Vector4f max;
-
+    
+    // std::cout<<"bbpoint0:"<<cluster_cloud.points[0].x<<" "<<cluster_cloud.points[0].y<<" "<<cluster_cloud.points[1].x<<" "<<cluster_cloud.points[1].y<<std::endl;
+    // std::cout<<"bbpoint1:"<<cluster_cloud.points[2].x<<" "<<cluster_cloud.points[2].y<<" "<<cluster_cloud.points[3].x<<" "<<cluster_cloud.points[3].y<<std::endl;
     pcl::compute3DCentroid(cluster_cloud,centroid);
     pcl::getMinMax3D(cluster_cloud,min,max);
+
 
     uint32_t shape = visualization_msgs::Marker::CUBE;
     visualization_msgs::Marker marker;
@@ -706,6 +736,8 @@ visualization_msgs::Marker Draw_Bounding_Box(pcl::PointCloud<pcl::PointXYZ>& clu
     marker.scale.x = (max[0]-min[0]); //width
     marker.scale.y = (max[1]-min[1]); //length
     marker.scale.z = (max[2]-min[2]); //height
+
+    // std::cout<<"shape: x: "<<marker.scale.x<< " y:"<< marker.scale.y << " z:" <<marker.scale.z<<std::endl;
 
     marker.color.g = 1.0f;
     marker.color.b = 1.0;
