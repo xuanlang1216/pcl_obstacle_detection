@@ -1,1 +1,2 @@
+std_msgs/Header header
 pcl_obstacle_detection/StampedObject[] objects

@@ -181,6 +181,8 @@ target_link_libraries(pcl_obstacle_detect_node
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   python/listener.py
+  python/kitti_tracklet.py
+  python/parseTrackletXML.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -207,7 +209,7 @@ catkin_install_python(PROGRAMS
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
-#   # myfile1
+#   python/tracklet_labels.xml
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )

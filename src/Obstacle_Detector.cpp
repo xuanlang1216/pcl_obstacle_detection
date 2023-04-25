@@ -45,7 +45,7 @@
 #include <pcl_obstacle_detection/Cloud_Filter.hpp>
 #include <pcl_obstacle_detection/Obstacle_Detector.hpp>
 
-#define MARKER_LIFETIME 1
+#define MARKER_LIFETIME 500
 
 // Dynamic parameter server callback function
 void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config& config, uint32_t level)
@@ -69,7 +69,8 @@ void dynamicParamCallback(pcl_obstacle_detection::pcl_obstacle_detection_Config&
     tRatioMax = config.BoxFit_tRatioMax;   //max ratio between length and width
     minLenRatio = config.BoxFit_minLenRatio; //min length of object for ratio check
     tPtPerM3 = config.BoxFit_tPtPerM3;      //min point count per bouding box volume
-
+    
+    kernelSize = config.ComponentClustering_kernelSize;
     roiM = config.ComponentClustering_roiM;
 
 }
@@ -166,6 +167,11 @@ void Obstacle_Detector::processPointCloud(const sensor_msgs::PointCloud2::ConstP
     // Draw Bounding Boxes
     std::vector<pcl::PointCloud<pcl::PointXYZ>> bounding_boxes = boxFitting(cluster_cloud,cartesianData,numCluster);
     visualization_msgs::MarkerArray visual_bouding_box;
+    
+    // delete all previous objects
+    visualization_msgs::Marker maker_delete;
+    maker_delete.action = visualization_msgs::Marker::DELETEALL;
+    visual_bouding_box.markers.emplace_back(maker_delete);
 
     //store the measurmeent distance
     std::vector<Eigen::Vector4f> centroids;
@@ -206,6 +212,7 @@ void Obstacle_Detector::processPointCloud(const sensor_msgs::PointCloud2::ConstP
 
     //pack the objects:
     pcl_obstacle_detection::StampedObjectArray publish_objects = packObjects(pointcloud_header);
+    publish_objects.header = pointcloud_header;
 
     //Publish Ground cloud and obstacle cloud
     sensor_msgs::PointCloud2 cluster_cloud_msg;
@@ -537,6 +544,12 @@ visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header
 {
     // ROS_INFO("Drawing Trackers");
     visualization_msgs::MarkerArray visual_objects;
+
+    // delete all previous objects
+    visualization_msgs::Marker maker_delete;
+    maker_delete.action = visualization_msgs::Marker::DELETEALL;
+    visual_objects.markers.emplace_back(maker_delete);
+
     // add Bounding box
     // ROS_INFO("%i objects to draw",Objects.size());
     for (auto object : Objects)
@@ -613,7 +626,7 @@ visualization_msgs::MarkerArray Obstacle_Detector::drawTrackers(std_msgs::Header
         marker_text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
         marker_text.header = header;
 
-        marker_text.scale.z = 0.2;
+        // marker_text.scale.z = 0.2;
         marker_text.color.b = 0;
         marker_text.color.g = 0;
         marker_text.color.r = 255;

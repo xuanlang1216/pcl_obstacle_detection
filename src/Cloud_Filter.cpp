@@ -743,7 +743,7 @@ visualization_msgs::Marker Draw_Bounding_Box(pcl::PointCloud<pcl::PointXYZ>& clu
     marker.color.b = 1.0;
     marker.color.a = 1.0;
 
-    marker.lifetime = ros::Duration(5);
+    marker.lifetime = ros::Duration();
 
     return marker;   
 }

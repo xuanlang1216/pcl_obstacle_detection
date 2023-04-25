@@ -57,7 +57,7 @@
   <build_depend>tf2_ros</build_depend>
   <build_depend>tf2_geometry_msgs</build_depend>
   <build_depend>dynamic_reconfigure</build_depend>
-  <build_depend>autoware_msgs</build_depend>
+  <!-- <build_depend>autoware_msgs</build_depend> -->
   <build_depend>jsk_recognition_msgs</build_depend>
   <build_depend>message_generation</build_depend>
 
@@ -69,7 +69,7 @@
   <build_export_depend>tf2_ros</build_export_depend>
   <build_export_depend>tf2_geometry_msgs</build_export_depend>
   <build_export_depend>dynamic_reconfigure</build_export_depend>
-  <build_export_depend>autoware_msgs</build_export_depend>
+  <!-- <build_export_depend>autoware_msgs</build_export_depend> -->
   <build_export_depend>jsk_recognition_msgs</build_export_depend>
   <!-- <build_export_depend>message_generation</build_export_depend> -->
 
